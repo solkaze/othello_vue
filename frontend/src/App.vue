@@ -1,16 +1,14 @@
 <template>
-  <div id="app">
-    <h1>オセロ</h1>
-    <OthelloBoard />
-  </div>
+  <router-view />
 </template>
 
 <script setup>
-import OthelloBoard from './components/OthelloBoard.vue'
 </script>
 
 <style>
 body {
   font-family: sans-serif;
+  margin: 0;
+  padding: 0;
 }
 </style>

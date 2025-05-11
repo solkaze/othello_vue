@@ -1,69 +1,61 @@
 <template>
-  <div class="board">
-    <div v-for="(row, rowIndex) in board" :key="rowIndex" class="row">
-      <div
-        v-for="(cell, colIndex) in row"
-        :key="colIndex"
-        class="cell"
-        :class="{
-          black: cell === 'B',
-          white: cell === 'W',
-          hint: isHint(rowIndex, colIndex)
-        }"
-        @click="handleClick(rowIndex, colIndex)"
-      />
+  <div class="local-game">
+    <h2>ローカルオセロ</h2>
+    <p>現在の手番: <span :class="currentPlayer">{{ currentPlayer === 'B' ? '黒' : '白' }}</span></p>
+
+    <div class="board">
+      <div v-for="(row, rowIndex) in board" :key="rowIndex" class="row">
+        <div
+          v-for="(cell, colIndex) in row"
+          :key="colIndex"
+          class="cell"
+          :class="{
+            black: cell === 'B',
+            white: cell === 'W',
+            hint: isHint(rowIndex, colIndex)
+          }"
+          @click="handleClick(rowIndex, colIndex)"
+        />
+      </div>
     </div>
+  </div>
+  <div class="end">
+    <h3>練習を終了する</h3>
+    <button @click="exitGame">Exit</button>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
-// サイズ・盤面・手番
+const router = useRouter()
+
 const SIZE = 8
 const board = ref(Array.from({ length: SIZE }, () => Array(SIZE).fill('')))
 board.value[3][3] = 'W'
 board.value[3][4] = 'B'
 board.value[4][3] = 'B'
 board.value[4][4] = 'W'
-const currentPlayer = ref('B')
-const myPlayer = ref('B') // ← 自分の色（B または W）
-const validMove = ref([])
 
-const ws = ref(null)
+const currentPlayer = ref('B')
+const validMoves = ref([])
 
 onMounted(() => {
-  // WebSocket 接続
-  ws.value = new WebSocket('ws://localhost:10001/ws/othello')
-
-  ws.value.onopen = () => {
-    console.log("✅ WebSocket 接続完了")
-  }
-
-  ws.value.onmessage = (event) => {
-    const { row, col, player } = JSON.parse(event.data)
-    applyMove(row, col, player)
-  }
-
-  updateValidMove()
+  updateValidMoves()
 })
 
-function handleClick(row, col) {
-  if (currentPlayer.value !== myPlayer.value) return
-  if (!isValidMove(row, col, myPlayer.value)) return
+const handleClick = (row, col) => {
+  if (!isValidMove(row, col, currentPlayer.value)) return
 
-  // WebSocket経由でサーバーに送信
-  ws.value.send(JSON.stringify({ row, col, player: myPlayer.value }))
+  board.value[row][col] = currentPlayer.value
+  flipStones(row, col, currentPlayer.value)
+
+  currentPlayer.value = currentPlayer.value === 'B' ? 'W' : 'B'
+  updateValidMoves()
 }
 
-function applyMove(row, col, player) {
-  board.value[row][col] = player
-  flipStones(row, col, player)
-  currentPlayer.value = player === 'B' ? 'W' : 'B'
-  updateValidMove()
-}
-
-function isValidMove(row, col, player) {
+const isValidMove = (row, col, player) => {
   if (board.value[row][col] !== '') return false
   const opponent = player === 'B' ? 'W' : 'B'
   const directions = [
@@ -73,19 +65,20 @@ function isValidMove(row, col, player) {
   ]
   for (const [dx, dy] of directions) {
     let x = row + dx, y = col + dy
-    let hasOpponentBetween = false
+    let foundOpponent = false
     while (x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === opponent) {
-      x += dx; y += dy
-      hasOpponentBetween = true
+      x += dx
+      y += dy
+      foundOpponent = true
     }
-    if (hasOpponentBetween && x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === player) {
+    if (foundOpponent && x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === player) {
       return true
     }
   }
   return false
 }
 
-function flipStones(row, col, player) {
+const flipStones = (row, col, player) => {
   const opponent = player === 'B' ? 'W' : 'B'
   const directions = [
     [-1, -1], [-1, 0], [-1, 1],
@@ -97,31 +90,52 @@ function flipStones(row, col, player) {
     const toFlip = []
     while (x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === opponent) {
       toFlip.push([x, y])
-      x += dx; y += dy
+      x += dx
+      y += dy
     }
     if (toFlip.length && x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === player) {
-      for (const [fx, fy] of toFlip) board.value[fx][fy] = player
-    }
-  }
-}
-
-function updateValidMove() {
-  validMove.value = []
-  for (let i = 0; i < SIZE; ++i) {
-    for (let j = 0; j < SIZE; ++j) {
-      if (isValidMove(i, j, currentPlayer.value)) {
-        validMove.value.push([i, j])
+      for (const [fx, fy] of toFlip) {
+        board.value[fx][fy] = player
       }
     }
   }
 }
 
-function isHint(row, col) {
-  return validMove.value.some(([r, c]) => r === row && c === col)
+const updateValidMoves = () => {
+  validMoves.value = []
+  for (let i = 0; i < SIZE; i++) {
+    for (let j = 0; j < SIZE; j++) {
+      if (isValidMove(i, j, currentPlayer.value)) {
+        validMoves.value.push([i, j])
+      }
+    }
+  }
+}
+
+const isHint = (row, col) => {
+  return validMoves.value.some(([r, c]) => r === row && c === col)
+}
+
+const exitGame = () => {
+  router.push('/')
 }
 </script>
 
-<style>
+<style scoped>
+.local-game {
+  text-align: center;
+  margin-top: 30px;
+  background-color: #2d2d2d;
+  color: #eee;
+  font-family: 'Segoe UI', sans-serif;
+  padding-bottom: 50px;
+}
+
+h2 {
+  font-size: 2em;
+  margin-bottom: 10px;
+}
+
 .board {
   display: inline-block;
   border: 8px solid #7b5e3c;
@@ -135,11 +149,6 @@ function isHint(row, col) {
   );
   border-radius: 12px;
   overflow: hidden;
-}
-
-h2 {
-  font-size: 2em;
-  margin-bottom: 10px;
 }
 
 .row {
@@ -205,4 +214,5 @@ h2 {
   color: #f5f5f5;
   font-weight: bold;
 }
+
 </style>
