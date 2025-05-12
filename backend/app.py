@@ -1,10 +1,11 @@
 import socket
 import threading
+import time
+import json
+import logging
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import json
-import logging
 
 app = FastAPI()
 
@@ -12,7 +13,8 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://frontend:3000"
+        "http://frontend:3000",
+        "http://localhost:3000"
     ],  # 本番環境では限定してください
     allow_credentials=True,
     allow_methods=["*"],
@@ -45,10 +47,16 @@ async def wait_endpoint(request: Request):
         # 非同期スレッドで TCP 接続を待つ
         thread = threading.Thread(target=wait_for_client, daemon=True)
         thread.start()
+        print("🟢 接続待機スレッドを起動しました")
 
         return JSONResponse({"status": "ok"})
     except Exception as e:
+        print(f"❌ 例外発生: {e}")
         return JSONResponse({"status": "error", "reason": str(e)})
+
+@app.get("/status")
+async def connection_status():
+    return {"connected": connected_socket is not None}
 
 @app.post("/connect")
 async def connect_to_opponent(request: Request):
@@ -107,3 +115,19 @@ async def websocket_othello(websocket: WebSocket):
             await websocket.send_text(json.dumps(response))
     except Exception as e:
         print("WebSocket切断:", e)
+
+# /cancel エンドポイント（キャンセル用）
+@app.post("/cancel")
+async def cancel_wait():
+    global connected_socket, server_socket
+
+    if connected_socket:
+        connected_socket.close()  # 既に接続されていれば切断
+        connected_socket = None
+
+    if server_socket:
+        server_socket.close()  # 待機中のソケットを閉じる
+        server_socket = None
+
+    print("⚠️ 接続待機がキャンセルされました。ポートが閉じられました。")
+    return JSONResponse({"status": "ok"})

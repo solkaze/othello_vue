@@ -18,6 +18,7 @@
         <h3>接続を待機</h3>
         <button @click="waitForConnection">待機開始</button>
         <p v-if="isWaiting">接続を待機中です...</p>
+        <button @click="cancelWaiting">待機をやめる</button>
       </div>
 
       <div class="card">
@@ -108,8 +109,19 @@ const connectToOpponent = () => {
     })
 }
 
+let interval = null;
+let timeout = null;
+
 const waitForConnection = () => {
   isWaiting.value = true
+
+  const timeoutDuration = 10000;  // 30秒
+
+  timeout = setTimeout(() => {
+    alert('接続タイムアウトしました');
+    isWaiting.value = false;
+  }, timeoutDuration);
+
   fetch(`http://localhost:10001/wait`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -118,9 +130,23 @@ const waitForConnection = () => {
     .then(res => res.json())
     .then(data => {
       if (data.status === 'ok') {
-        alert('相手が接続しました')
-        setupWebSocket()
-        router.push('/game')
+        // 接続確認ポーリング
+        interval = setInterval(() => {
+          fetch(`http://localhost:10001/status`)
+            .then(res => res.json())
+            .then(status => {
+              if (status.connected) {
+                clearInterval(interval);
+                clearTimeout(timeout);
+                alert('相手が接続しました');
+                setupWebSocket();
+                router.push('/game');
+              }
+            }, 1000)
+            .catch(err => {
+              console.error('ステータス確認エラー:', err)
+            })
+        })
       } else {
         alert('待機失敗: ' + data.reason)
       }
@@ -129,6 +155,14 @@ const waitForConnection = () => {
       console.error(err)
       alert('待機処理中にエラーが発生しました')
     })
+}
+
+// 待機をやめるボタン
+const cancelWaiting = () => {
+  clearInterval(interval);
+  clearTimeout(timeout);
+  isWaiting.value = false;
+  alert('接続待機をキャンセルしました');
 }
 
 const startLocalGame = () => {
