@@ -11,6 +11,7 @@
           placeholder="相手のIPアドレスを入力"
         />
         <button @click="connectToOpponent">接続する</button>
+        <button @click="connectToOpponent">試合を観戦</button>
       </div>
 
       <!-- 接続を待機する側 -->
@@ -18,17 +19,7 @@
         <h3>接続を待機</h3>
         <button @click="waitForConnection">待機開始</button>
         <p v-if="isWaiting">接続を待機中です...</p>
-        <button @click="cancelWaiting">待機をやめる</button>
-      </div>
-
-      <div class="card">
-        <h3>試合を観戦</h3>
-        <input
-          v-model="ipAddress"
-          type="text"
-          placeholder="相手のIPアドレスを入力"
-        />
-        <button @click="connectToOpponent">接続する</button>
+        <button @click="cancelWait" :disabled="!isWaiting">キャンセル</button>
       </div>
       <div class="card">
         <h3>一人で練習</h3>
@@ -141,12 +132,16 @@ const waitForConnection = () => {
                 alert('相手が接続しました');
                 setupWebSocket();
                 router.push('/game');
+              } else if (status.expired) {
+                clearInterval(interval)
+              } else if (status.cancelled) {
+                clearInterval(interval)
               }
-            }, 1000)
+            })
             .catch(err => {
               console.error('ステータス確認エラー:', err)
             })
-        })
+        }, 1000)
       } else {
         alert('待機失敗: ' + data.reason)
       }
@@ -158,11 +153,19 @@ const waitForConnection = () => {
 }
 
 // 待機をやめるボタン
-const cancelWaiting = () => {
-  clearInterval(interval);
-  clearTimeout(timeout);
-  isWaiting.value = false;
-  alert('接続待機をキャンセルしました');
+const cancelWait = () => {
+  clearInterval(interval)
+  clearTimeout(timeout)
+  fetch('http://localhost:10001/cancel_wait', { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'cancelled') {
+        isWaiting.value = false
+      }
+    })
+    .catch(err => {
+      console.error('キャンセル中にエラー:', err)
+    })
 }
 
 const startLocalGame = () => {
