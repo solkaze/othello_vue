@@ -48,6 +48,33 @@ onMounted(() => {
   updateValidMove()
 })
 
+const setupWebSocket = () => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    console.log("✅ すでにWebSocket接続済みです")
+    return
+  }
+
+  ws = new WebSocket('ws://localhost:10001/ws/othello')
+
+  ws.onopen = () => {
+    console.log("✅ WebSocket接続確立")
+    ws.send("hello vue")
+  }
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data)
+    console.log("📩 メッセージ受信:", data)
+  }
+
+  ws.onclose = () => {
+    console.log("🔌 WebSocket切断")
+  }
+
+  ws.onerror = (err) => {
+    console.error("❌ WebSocketエラー:", err)
+  }
+}
+
 function handleClick(row, col) {
   if (currentPlayer.value !== myPlayer.value) return
   if (!isValidMove(row, col, myPlayer.value)) return

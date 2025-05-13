@@ -10,6 +10,11 @@
           type="text"
           placeholder="相手のIPアドレスを入力"
         />
+        <input
+          v-model="userName"
+          type="text"
+          placeholder="名前を入力してください"
+        />
         <button @click="connectToOpponent">接続する</button>
         <button @click="connectToOpponent">試合を観戦</button>
       </div>
@@ -17,7 +22,7 @@
       <!-- 接続を待機する側 -->
       <div class="card">
         <h3>接続を待機</h3>
-        <button @click="waitForConnection">待機開始</button>
+        <button @click="waitForConnection" :disabled="isWaiting">待機開始</button>
         <p v-if="isWaiting">接続を待機中です...</p>
         <button @click="cancelWait" :disabled="!isWaiting">キャンセル</button>
       </div>
@@ -34,6 +39,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const ipAddress = ref('')
+const userName = ref('')
 const isWaiting = ref(false)
 const router = useRouter()
 
@@ -82,7 +88,7 @@ const connectToOpponent = () => {
   fetch(`http://localhost:10001/connect`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ip: ipAddress.value })
+    body: JSON.stringify({ ip: ipAddress.value, name: userName.value })
   })
     .then(res => res.json())
     .then(data => {
@@ -106,13 +112,6 @@ let timeout = null;
 const waitForConnection = () => {
   isWaiting.value = true
 
-  const timeoutDuration = 10000;  // 30秒
-
-  timeout = setTimeout(() => {
-    alert('接続タイムアウトしました');
-    isWaiting.value = false;
-  }, timeoutDuration);
-
   fetch(`http://localhost:10001/wait`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -128,12 +127,7 @@ const waitForConnection = () => {
             .then(status => {
               if (status.connected) {
                 clearInterval(interval);
-                clearTimeout(timeout);
-                alert('相手が接続しました');
-                setupWebSocket();
                 router.push('/game');
-              } else if (status.expired) {
-                clearInterval(interval)
               } else if (status.cancelled) {
                 console.log('キャンセルされました')
                 clearInterval(interval)

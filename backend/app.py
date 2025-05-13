@@ -1,6 +1,5 @@
 import socket
 import threading
-import time
 import select
 import json
 import logging
@@ -26,47 +25,34 @@ logger = logging.getLogger("uvicorn")
 
 connected_socket = None
 server_socket = None
-socket_lock = threading.Lock()
 
 wait_expired = False
 wait_cancelled = False
 running = False
 
-def wait_for_client(timeout_sec=10):
-    global connected_socket, server_socket, wait_expired, wait_cancelled, running
-    wait_expired = False
-    wait_cancelled = False
-    
-    start_time = time.time()
+wait_thread = None
 
+wait_cancel_event = threading.Event()
+
+def wait_for_client():
+    global connected_socket, server_socket
     try:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setblocking(False)
         server_socket.bind(('', 10000))
         server_socket.listen(1)
-        
-        while running:
-            
-            if time.time() - start_time > timeout_sec:
-                print("タイムアウトになりました")
-                wait_expired = True
-                break         
 
-            try:
-                readable, _, _ = select.select([server_socket], [], [], 1.0)
-                if readable:
-                    conn, addr = server_socket.accept()
-                    print("接続:", addr)
-                    connected_socket = conn
-                    conn.close()
-            except Exception as e:
-                print("例外:", e)
+        while not wait_cancel_event.is_set():
+            readable, _, _ = select.select([server_socket], [], [], 1.0)
+            if readable:
+                conn, addr = server_socket.accept()
+                print("接続:", addr)
+                connected_socket = conn
                 break
     finally:
-        if server_socket:
-            server_socket.close()
-            server_socket = None
-            print("ソケットを閉じました")
+        server_socket.close()
+        server_socket = None
+        print("ソケットを閉じました")
 
 
 # /status エンドポイントの修正
@@ -81,14 +67,12 @@ async def status():
 # /wait エンドポイント
 @app.post("/wait")
 async def wait_endpoint(request: Request):
-    global running
+    global wait_thread, server_socket
     try:
-        # 非同期スレッドで TCP 接続を待つ
-        running = True
-        thread = threading.Thread(target=wait_for_client, daemon=True)
-        thread.start()
+        wait_cancel_event.clear()  # 事前にフラグをリセット
+        wait_thread = threading.Thread(target=wait_for_client, daemon=True)
+        wait_thread.start()
         print("🟢 接続待機スレッドを起動しました")
-
         return JSONResponse({"status": "ok"})
     except Exception as e:
         print(f"❌ 例外発生: {e}")
@@ -100,9 +84,13 @@ async def connect_to_opponent(request: Request):
     try:
         data = await request.json()
         target_ip = data.get("ip")  # 例: 192.168.1.5
+        target_name = data.get("name")
 
         if not target_ip:
             return JSONResponse({"status": "error", "reason": "IPアドレスが指定されていません"})
+        
+        if not target_name:
+            return JSONResponse({"status": "error", "reason": "名前が指定されていません"})
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((target_ip, 10000))  # TCPポート10000で接続
@@ -118,18 +106,9 @@ async def connect_to_opponent(request: Request):
 
 @app.post("/cancel_wait")
 async def cancel_wait():
-    global wait_cancelled, server_socket, running
-    wait_cancelled = True
-    running = False
-    if server_socket:
-        try:
-            server_socket.close()
-            server_socket = None
-            print("🛑 待機をキャンセルしソケットを閉じました")
-        except Exception as e:
-            print(f"⚠️ ソケットクローズ中にエラー: {e}")
-        server_socket = None
-
+    wait_cancel_event.set()  # スレッドに終了通知
+    if wait_thread is not None:
+        wait_thread.join()  # ✅ スレッド終了を待つ
     return JSONResponse({"status": "cancelled"})
 
 # WebSocket接続管理
@@ -161,7 +140,7 @@ async def websocket_othello(websocket: WebSocket):
             data = await websocket.receive_text()
             logger.info(f"WebSocket受信: {data}")
             response = {
-                "type": "pong",
+                "type": "true",
                 "message": f"受信しました: {data}"
             }
             await websocket.send_text(json.dumps(response))
