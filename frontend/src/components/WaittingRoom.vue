@@ -1,7 +1,8 @@
 <template>
   <div class="waiting-room">
     <h2>接続者一覧</h2>
-    <p>対戦相手の接続を待っています...</p>
+    <p v-if="isCancel">キャンセルしています...</p>
+    <p v-else>対戦相手の接続を待っています...</p>
     <ul>
       <li v-for="(client, index) in connectedClients" :key="index">
         {{ client.name }} - {{ client.ip }}
@@ -17,6 +18,8 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const isWaiting = ref(false)
+let interval = null;
+let isCancel = false;
 
 onMounted(() => {
   waitForConnection()
@@ -62,17 +65,20 @@ const waitForConnection = () => {
 }
 
 const cancelWait = () => {
+  isCancel = true
   clearInterval(interval)
   fetch('http://localhost:10001/cancel_wait', { method: 'POST' })
     .then(res => res.json())
     .then(data => {
       if (data.status === 'cancelled') {
         isWaiting.value = false
+        router.push('/')
       }
     })
     .catch(err => {
       console.error('キャンセル中にエラー:', err)
     })
+
 };
 
 

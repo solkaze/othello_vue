@@ -145,4 +145,4 @@ async def websocket_othello(websocket: WebSocket):
             }
             await websocket.send_text(json.dumps(response))
     except Exception as e:
-        print("WebSocket切断:", e)
+        print("WebSocket切断s:", e)
