@@ -135,6 +135,7 @@ const waitForConnection = () => {
               } else if (status.expired) {
                 clearInterval(interval)
               } else if (status.cancelled) {
+                console.log('キャンセルされました')
                 clearInterval(interval)
               }
             })

@@ -1,6 +1,7 @@
 import socket
 import threading
 import time
+import select
 import json
 import logging
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -25,36 +26,47 @@ logger = logging.getLogger("uvicorn")
 
 connected_socket = None
 server_socket = None
+socket_lock = threading.Lock()
+
 wait_expired = False
 wait_cancelled = False
+running = False
 
-def wait_for_client(timeout_sec=60):
-    global connected_socket, server_socket, wait_expired, wait_cancelled
+def wait_for_client(timeout_sec=10):
+    global connected_socket, server_socket, wait_expired, wait_cancelled, running
+    wait_expired = False
+    wait_cancelled = False
+    
+    start_time = time.time()
+
     try:
-        wait_expired = False
-        wait_cancelled = False
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.settimeout(timeout_sec)
+        server_socket.setblocking(False)
         server_socket.bind(('', 10000))
         server_socket.listen(1)
-        print(f"🔌 TCP接続待機中（ポート10000）... 最大 {timeout_sec} 秒")
+        
+        while running:
+            
+            if time.time() - start_time > timeout_sec:
+                print("タイムアウトになりました")
+                wait_expired = True
+                break         
 
-        conn, addr = server_socket.accept()
-        if not wait_cancelled:
-            print(f"✅ 相手と接続されました: {addr}")
-            connected_socket = conn
-
-    except socket.timeout:
-        print("⌛ 接続タイムアウト：誰も接続しませんでした")
-        wait_expired = True
-    except OSError as e:
-        print(f"🚫 ソケットが閉じられたため待機終了: {e}")
-        # wait_cancelled = True は明示的に POST /cancel_wait でセットされるので不要
+            try:
+                readable, _, _ = select.select([server_socket], [], [], 1.0)
+                if readable:
+                    conn, addr = server_socket.accept()
+                    print("接続:", addr)
+                    connected_socket = conn
+                    conn.close()
+            except Exception as e:
+                print("例外:", e)
+                break
     finally:
         if server_socket:
             server_socket.close()
             server_socket = None
-            print("⚠️ ソケットを閉じました")
+            print("ソケットを閉じました")
 
 
 # /status エンドポイントの修正
@@ -69,8 +81,10 @@ async def status():
 # /wait エンドポイント
 @app.post("/wait")
 async def wait_endpoint(request: Request):
+    global running
     try:
         # 非同期スレッドで TCP 接続を待つ
+        running = True
         thread = threading.Thread(target=wait_for_client, daemon=True)
         thread.start()
         print("🟢 接続待機スレッドを起動しました")
@@ -104,12 +118,18 @@ async def connect_to_opponent(request: Request):
 
 @app.post("/cancel_wait")
 async def cancel_wait():
-    global server_socket, wait_cancelled
+    global wait_cancelled, server_socket, running
     wait_cancelled = True
+    running = False
     if server_socket:
-        server_socket.close()
+        try:
+            server_socket.close()
+            server_socket = None
+            print("🛑 待機をキャンセルしソケットを閉じました")
+        except Exception as e:
+            print(f"⚠️ ソケットクローズ中にエラー: {e}")
         server_socket = None
-        print("🛑 待機をキャンセルしました")
+
     return JSONResponse({"status": "cancelled"})
 
 # WebSocket接続管理
