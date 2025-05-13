@@ -40,52 +40,19 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useWebSocketStore } from '@/stores/websocket'
 
 const ipAddress = ref('')
 const userName = ref('')
 const isWaiting = ref(false)
 const router = useRouter()
-
-let ws = null;
+const ws = useWebSocketStore()
 
 onMounted(() => {
-  setupWebSocket()
+  if (!ws.isConnected) {
+    ws.connect()
+  }
 })
-
-const setupWebSocket = () => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    console.log("✅ すでにWebSocket接続済みです")
-    return
-  }
-
-  ws = new WebSocket('ws://localhost:10001/ws/othello')
-
-  ws.onopen = () => {
-    console.log("✅ WebSocket接続確立")
-    ws.send("hello vue")
-  }
-
-  ws.onmessage = (event) => {
-    const data = JSON.parse(event.data)
-    console.log("📩 メッセージ受信:", data)
-  }
-
-  ws.onclose = () => {
-    console.log("🔌 WebSocket切断")
-  }
-
-  ws.onerror = (err) => {
-    console.error("❌ WebSocketエラー:", err)
-  }
-}
-
-// WebSocket を明示的に閉じる関数
-const closeWebSocket = () => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.close()
-    ws = null
-  }
-}
 
 const connectToOpponent = () => {
   fetch(`http://localhost:10001/connect`, {
@@ -97,7 +64,7 @@ const connectToOpponent = () => {
     .then(data => {
       if (data.status === 'ok') {
         alert('接続成功しました')
-        setupWebSocket()
+        ws.connect() // WebSocket 接続
         router.push('/game')
       } else {
         alert('接続失敗: ' + data.reason)
@@ -109,18 +76,11 @@ const connectToOpponent = () => {
     })
 }
 
-let interval = null;
-let timeout = null;
-
 const waitForConnection = () => {
-  closeWebSocket()
   router.push('/waitting')
 }
 
-// 待機をやめるボタン
 const cancelWait = () => {
-  clearInterval(interval)
-  clearTimeout(timeout)
   fetch('http://localhost:10001/cancel_wait', { method: 'POST' })
     .then(res => res.json())
     .then(data => {
@@ -134,7 +94,6 @@ const cancelWait = () => {
 }
 
 const startLocalGame = () => {
-  closeWebSocket()
   router.push('/local')
 }
 </script>

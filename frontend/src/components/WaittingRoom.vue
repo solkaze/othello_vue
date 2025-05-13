@@ -4,9 +4,9 @@
     <p v-if="isCancel">キャンセルしています...</p>
     <p v-else>対戦相手の接続を待っています...</p>
     <ul>
-      <li v-for="(client, index) in connectedClients" :key="index">
+      <!-- <li v-for="(client, index) in connectedClients" :key="index">
         {{ client.name }} - {{ client.ip }}
-      </li>
+      </li> -->
     </ul>
     <button @click="cancelWait">キャンセルして戻る</button>
   </div>
@@ -19,10 +19,14 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const isWaiting = ref(false)
 let interval = null;
-let isCancel = false;
+const isCancel = ref(false);
 
 onMounted(() => {
   waitForConnection()
+})
+
+onUnmounted(() => {
+  if (interval) clearInterval(interval)
 })
 
 const waitForConnection = () => {
@@ -43,7 +47,6 @@ const waitForConnection = () => {
             .then(status => {
               if (status.connected) {
                 clearInterval(interval);
-                clearTimeout(timeout);
                 router.push('/game');
               } else if (status.cancelled) {
                 console.log('キャンセルされました')
@@ -65,7 +68,7 @@ const waitForConnection = () => {
 }
 
 const cancelWait = () => {
-  isCancel = true
+  isCancel.value = true
   clearInterval(interval)
   fetch('http://localhost:10001/cancel_wait', { method: 'POST' })
     .then(res => res.json())
