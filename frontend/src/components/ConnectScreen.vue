@@ -10,25 +10,24 @@
           type="text"
           placeholder="相手のIPアドレスを入力"
         />
+        <input
+          v-model="userName"
+          type="text"
+          placeholder="名前を入力してください"
+        />
         <button @click="connectToOpponent">接続する</button>
+        <button @click="connectToOpponent">試合を観戦</button>
       </div>
 
       <!-- 接続を待機する側 -->
       <div class="card">
         <h3>接続を待機</h3>
-        <button @click="waitForConnection">待機開始</button>
-        <p v-if="isWaiting">接続を待機中です...</p>
-        <button @click="cancelWaiting">待機をやめる</button>
-      </div>
-
-      <div class="card">
-        <h3>試合を観戦</h3>
         <input
-          v-model="ipAddress"
+          v-model="userName"
           type="text"
-          placeholder="相手のIPアドレスを入力"
+          placeholder="名前を入力してください"
         />
-        <button @click="connectToOpponent">接続する</button>
+        <button @click="waitForConnection" :disabled="isWaiting">待機開始</button>
       </div>
       <div class="card">
         <h3>一人で練習</h3>
@@ -43,6 +42,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const ipAddress = ref('')
+const userName = ref('')
 const isWaiting = ref(false)
 const router = useRouter()
 
@@ -91,7 +91,7 @@ const connectToOpponent = () => {
   fetch(`http://localhost:10001/connect`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ip: ipAddress.value })
+    body: JSON.stringify({ ip: ipAddress.value, name: userName.value })
   })
     .then(res => res.json())
     .then(data => {
@@ -113,56 +113,24 @@ let interval = null;
 let timeout = null;
 
 const waitForConnection = () => {
-  isWaiting.value = true
-
-  const timeoutDuration = 10000;  // 30秒
-
-  timeout = setTimeout(() => {
-    alert('接続タイムアウトしました');
-    isWaiting.value = false;
-  }, timeoutDuration);
-
-  fetch(`http://localhost:10001/wait`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role: 'host' })
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === 'ok') {
-        // 接続確認ポーリング
-        interval = setInterval(() => {
-          fetch(`http://localhost:10001/status`)
-            .then(res => res.json())
-            .then(status => {
-              if (status.connected) {
-                clearInterval(interval);
-                clearTimeout(timeout);
-                alert('相手が接続しました');
-                setupWebSocket();
-                router.push('/game');
-              }
-            }, 1000)
-            .catch(err => {
-              console.error('ステータス確認エラー:', err)
-            })
-        })
-      } else {
-        alert('待機失敗: ' + data.reason)
-      }
-    })
-    .catch(err => {
-      console.error(err)
-      alert('待機処理中にエラーが発生しました')
-    })
+  closeWebSocket()
+  router.push('/waitting')
 }
 
 // 待機をやめるボタン
-const cancelWaiting = () => {
-  clearInterval(interval);
-  clearTimeout(timeout);
-  isWaiting.value = false;
-  alert('接続待機をキャンセルしました');
+const cancelWait = () => {
+  clearInterval(interval)
+  clearTimeout(timeout)
+  fetch('http://localhost:10001/cancel_wait', { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'cancelled') {
+        isWaiting.value = false
+      }
+    })
+    .catch(err => {
+      console.error('キャンセル中にエラー:', err)
+    })
 }
 
 const startLocalGame = () => {

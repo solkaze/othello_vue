@@ -30,17 +30,17 @@ const currentPlayer = ref('B')
 const myPlayer = ref('B') // ← 自分の色（B または W）
 const validMove = ref([])
 
-const ws = ref(null)
+let ws = null
 
 onMounted(() => {
   // WebSocket 接続
-  ws.value = new WebSocket('ws://localhost:10001/ws/othello')
+  ws= new WebSocket('ws://localhost:10001/ws/othello')
 
-  ws.value.onopen = () => {
+  ws.onopen = () => {
     console.log("✅ WebSocket 接続完了")
   }
 
-  ws.value.onmessage = (event) => {
+  ws.onmessage = (event) => {
     const { row, col, player } = JSON.parse(event.data)
     applyMove(row, col, player)
   }
@@ -48,12 +48,39 @@ onMounted(() => {
   updateValidMove()
 })
 
+const setupWebSocket = () => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    console.log("✅ すでにWebSocket接続済みです")
+    return
+  }
+
+  ws = new WebSocket('ws://localhost:10001/ws/othello')
+
+  ws.onopen = () => {
+    console.log("✅ WebSocket接続確立")
+    ws.send("hello vue")
+  }
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data)
+    console.log("📩 メッセージ受信:", data)
+  }
+
+  ws.onclose = () => {
+    console.log("🔌 WebSocket切断")
+  }
+
+  ws.onerror = (err) => {
+    console.error("❌ WebSocketエラー:", err)
+  }
+}
+
 function handleClick(row, col) {
   if (currentPlayer.value !== myPlayer.value) return
   if (!isValidMove(row, col, myPlayer.value)) return
 
   // WebSocket経由でサーバーに送信
-  ws.value.send(JSON.stringify({ row, col, player: myPlayer.value }))
+  ws.send(JSON.stringify({ row, col, player: myPlayer.value }))
 }
 
 function applyMove(row, col, player) {
