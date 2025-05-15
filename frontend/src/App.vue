@@ -8,6 +8,12 @@ import { useWebSocketStore } from '@/stores/websocket'
 
 const ws = useWebSocketStore()
 
+// 🔌 ページ離脱時にだけ呼び出される切断処理
+const handleUnload = (event) => {
+  console.log('📤 ページ離脱に伴う WebSocket 切断要求')
+  ws.disconnect({ isUnload: true }) // leave API を叩くようにフラグ付きで呼ぶ
+}
+
 onMounted(() => {
   window.addEventListener('beforeunload', handleUnload)
 })
@@ -15,10 +21,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', handleUnload)
 })
-
-function handleUnload() {
-  ws.disconnect()
-}
 </script>
 
 <style>

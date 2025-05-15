@@ -41,12 +41,14 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWebSocketStore } from '@/stores/websocket'
+import { useUserStore } from '@/stores/user'
 
 const ipAddress = ref('')
 const userName = ref('')
 const isWaiting = ref(false)
 const router = useRouter()
 const ws = useWebSocketStore()
+const store = useUserStore()
 
 onMounted(() => {
   if (!ws.isConnected) {
@@ -64,7 +66,8 @@ const connectToOpponent = () => {
     .then(data => {
       if (data.status === 'ok') {
         alert('接続成功しました')
-        ws.connect() // WebSocket 接続
+        store.oppIP = ipAddress.value
+        store.myName = userName.value
         router.push('/game')
       } else {
         alert('接続失敗: ' + data.reason)
@@ -77,19 +80,24 @@ const connectToOpponent = () => {
 }
 
 const waitForConnection = () => {
-  router.push('/waitting')
-}
-
-const cancelWait = () => {
-  fetch('http://localhost:10001/cancel_wait', { method: 'POST' })
+  fetch('http://localhost:10001/name_check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: userName.value })
+  })
     .then(res => res.json())
     .then(data => {
-      if (data.status === 'cancelled') {
-        isWaiting.value = false
+      if (data.status === 'ok') {
+        isWaiting.value = true
+        store.myName = userName.value
+        router.push('/waitting')
+      } else {
+        alert('接続失敗: ' + data.reason)
       }
     })
     .catch(err => {
-      console.error('キャンセル中にエラー:', err)
+      console.error(err)
+      alert('接続待機に失敗しました')
     })
 }
 
