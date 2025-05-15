@@ -1,183 +1,120 @@
-<template>
-  <div class="waiting-room">
-    <h2>接続者一覧</h2>
-    <p v-if="isCancel">キャンセルしています...</p>
-    <p v-else>対戦相手の接続を待っています...</p>
+<script setup lang="ts">
+import { ref, computed, watch, onMounted } from 'vue'
+import { useOthelloStore } from '@/stores/othello'
+import { useRouter } from 'vue-router'
 
-    <div class="player">
-      <h3>プレイヤー</h3>
-      <div class="players">
-        <div class="player-box">
-          <p class="role-label">● 黒</p>
-          <p class="player-name">{{ blackPlayer?.name || '接続待ち...' }}</p>
+const store = useOthelloStore()
+const router = useRouter()
+
+// Spectators 配列が store に無いとレンダリングで落ちるため、
+// ???? なら空配列を返す安全ラッパーを用意
+const spectators = computed(() => store.spectators ?? [])
+
+// ラジオ選択: 'random' | 'black' | 'white'
+// (自分が黒 ＝ 先手)
+const firstTurn = ref<'random' | 'black' | 'white'>('random')
+
+// プレイヤーが両方いるか
+const ready = computed(() => !!store.opponent)
+
+// 対戦成立したら opponent/name が埋まる → UI 更新
+watch(
+  () => store.opponent,
+  (v) => {
+    if (v) {
+      // 両者揃ったがゲーム開始はまだ
+    }
+  },
+)
+
+// サーバーから途中で leave が来たとき
+onMounted(() => {
+  store.ws?.addEventListener('message', (ev) => {
+    const m = JSON.parse(ev.data)
+    if (m.type === 'leave') {
+      alert('相手が退室しました')
+      router.push('/')
+    }
+  })
+})
+
+function startGame() {
+  // 先手決定ロジック: 自分の color と firstTurn の関係で board ターンを初期化
+  if (firstTurn.value === 'random') {
+    // 50% で変更
+    if (Math.random() < 0.5) firstTurn.value = 'black'
+    else firstTurn.value = 'white'
+  }
+  store.setFirstTurn(firstTurn.value)
+  router.push('/game')
+}
+
+function cancel() {
+  store.leave()
+  router.push('/')
+}
+</script>
+
+<template>
+  <div class="min-h-screen bg-gradient-to-b from-emerald-50 to-emerald-100 flex items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg p-8 space-y-6">
+      <h2 class="text-xl font-semibold text-center">接続待機中</h2>
+
+      <!-- プレイヤー一覧 -->
+      <div class="flex justify-around py-4">
+        <div class="text-center">
+          <p class="font-medium">あなた</p>
+          <p class="text-lg">{{ store.player }}</p>
         </div>
-        <div class="player-box">
-          <p class="role-label">○ 白</p>
-          <p class="player-name">{{ whitePlayer?.name || '接続待ち...' }}</p>
+        <div class="text-center">
+          <p class="font-medium">相手</p>
+          <p class="text-lg" v-if="store.opponent">{{ store.opponent }}</p>
+          <p class="text-gray-400" v-else>接続待ち…</p>
         </div>
       </div>
-    </div>
 
-    <div class="audience">
-      <h3>観戦者</h3>
-      <ul>
-        <li v-for="(client, index) in audienceList" :key="index" v-if="index < 10">
-          {{ client.name }} - {{ client.ip }}
-        </li>
-      </ul>
-    </div>
+      <!-- 観戦者一覧 -->
+      <div>
+        <p class="font-medium mb-1">観戦者</p>
+        <div class="flex flex-wrap gap-2">
+          <span v-for="s in store.spectators" :key="s" class="px-2 py-1 bg-gray-200 rounded-lg text-sm">{{ s }}</span>
+          <span v-if="store.spectators.length === 0" class="text-gray-400">なし</span>
+        </div>
+      </div>
 
-    <button @click="cancelWait">キャンセルして戻る</button>
+      <!-- 先手選択 -->
+      <div class="space-y-2 border-t pt-4">
+        <p class="font-medium">先手を決める</p>
+        <div class="flex gap-4">
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="radio" value="random" v-model="firstTurn" class="form-radio" />
+            ランダム
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="radio" value="black" v-model="firstTurn" class="form-radio" />
+            あなた
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer" :class="{ 'opacity-50 cursor-not-allowed': !store.opponent }">
+            <input type="radio" value="white" v-model="firstTurn" :disabled="!store.opponent" class="form-radio" />
+            相手
+          </label>
+        </div>
+      </div>
+
+      <!-- ボタン -->
+      <div class="grid grid-cols-2 gap-4 pt-2">
+        <button class="btn-secondary" @click="cancel">キャンセル</button>
+        <button class="btn-primary" :class="{ 'opacity-50': !ready }" :disabled="!ready" @click="startGame">スタート</button>
+      </div>
+    </div>
   </div>
 </template>
 
-
-
-<script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { useUserStore } from '@/stores/user';
-
-const router = useRouter()
-const isWaiting = ref(false)
-let interval = null;
-const isCancel = ref(false);
-const store = useUserStore();
-const blackPlayer = computed(() => ({
-  name: store.myName,
-  ip: store.myIP
-}))
-
-const whitePlayer = computed(() => ({
-  name: store.oppName,
-  ip: store.oppIP
-}))
-// 仮の観戦者データ
-const audienceList = ref([
-  { name: '観戦者1', ip: '192.168.0.1' },
-  { name: '観戦者2', ip: '192.168.0.2' },
-  { name: '観戦者3', ip: '192.168.0.3' },
-  { name: '観戦者4', ip: '192.168.0.4' },
-  { name: '観戦者5', ip: '192.168.0.5' },
-  { name: '観戦者6', ip: '192.168.0.6' },
-  { name: '観戦者7', ip: '192.168.0.7' },
-  { name: '観戦者8', ip: '192.168.0.8' },
-  { name: '観戦者9', ip: '192.168.0.9' },
-  { name: '観戦者10', ip: '192.168.0.10' },
-  { name: '観戦者11', ip: '192.168.0.11' }, // これは表示されない
-]);
-
-onMounted(() => {
-  waitForConnection()
-  console.log(store.myName)
-})
-
-onUnmounted(() => {
-  if (interval) clearInterval(interval)
-})
-
-const waitForConnection = () => {
-
-  fetch(`http://localhost:10001/wait`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role: 'host' })
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === 'ok') {
-        interval = setInterval(() => {
-          fetch(`http://localhost:10001/status`)
-            .then(res => res.json())
-            .then(status => {
-              if (status.connected) {
-                clearInterval(interval);
-                router.push('/game');
-              } else if (status.cancelled) {
-                console.log('キャンセルされました')
-                clearInterval(interval)
-              }
-            })
-            .catch(err => {
-              console.error('ステータス確認エラー:', err)
-            })
-        }, 1000)
-      } else {
-        alert('待機失敗: ' + data.reason)
-      }
-    })
-    .catch(err => {
-      console.error(err)
-      alert('待機処理中にエラーが発生しました')
-    })
-}
-
-const cancelWait = () => {
-  isCancel.value = true
-  clearInterval(interval)
-  fetch('http://localhost:10001/cancel_wait', { method: 'POST' })
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === 'cancelled') {
-        isWaiting.value = false
-        router.push('/')
-      }
-    })
-    .catch(err => {
-      console.error('キャンセル中にエラー:', err)
-    })
-};
-</script>
-
-
 <style scoped>
-.waiting-room {
-  padding: 20px;
-  max-width: 600px;
-  margin: 0 auto;
+.btn-primary {
+  @apply w-full px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg shadow transition;
 }
-
-.players {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 20px;
+.btn-secondary {
+  @apply w-full px-4 py-2 border border-gray-400 text-gray-700 hover:bg-gray-50 rounded-lg transition;
 }
-
-.player-box {
-  flex: 1;
-  padding: 20px;
-  border: 2px dashed #888;
-  border-radius: 12px;
-  min-height: 100px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.role-label {
-  font-weight: bold;
-  font-size: 18px;
-  margin-bottom: 8px;
-}
-
-.player-name {
-  font-size: 16px;
-}
-
-.audience ul {
-  list-style-type: none;
-  padding: 0;
-  max-height: 300px;
-  overflow-y: auto;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 10px;
-}
-
-.audience li {
-  padding: 6px 0;
-}
-
 </style>
