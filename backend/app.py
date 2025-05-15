@@ -37,10 +37,11 @@ wait_cancel_event = threading.Event()
 def wait_for_client():
     global connected_socket, server_socket
     try:
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.setblocking(False)
-        server_socket.bind(('', 10000))
-        server_socket.listen(1)
+        if not server_socket:
+            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_socket.setblocking(False)
+            server_socket.bind(('', 10000))
+            server_socket.listen(1)
 
         while not wait_cancel_event.is_set():
             readable, _, _ = select.select([server_socket], [], [], 1.0)
@@ -49,10 +50,13 @@ def wait_for_client():
                 print("接続:", addr)
                 connected_socket = conn
                 break
-    finally:
+            print("待機中...")
+    except Exception:
         server_socket.close()
         server_socket = None
         print("ソケットを閉じました")
+    finally:
+        print("接続待機スレッド: 終了")
 
 
 # /status エンドポイントの修正
@@ -72,7 +76,7 @@ async def wait_endpoint(request: Request):
         wait_cancel_event.clear()  # 事前にフラグをリセット
         wait_thread = threading.Thread(target=wait_for_client, daemon=True)
         wait_thread.start()
-        print("🟢 接続待機スレッドを起動しました")
+        print("接続待機スレッド: 起動")
         return JSONResponse({"status": "ok"})
     except Exception as e:
         print(f"❌ 例外発生: {e}")
@@ -145,4 +149,30 @@ async def websocket_othello(websocket: WebSocket):
             }
             await websocket.send_text(json.dumps(response))
     except Exception as e:
-        print("WebSocket切断s:", e)
+        print("WebSocket切断:", e)
+
+@app.post("/leave")
+async def leave(data: dict):
+    global server_socket
+    name = data.get("name")
+    # name や IP アドレスなどで接続リストから削除
+    if server_socket:
+        server_socket.close()
+        server_socket = None
+        print("socket: 切断")
+    print(f"クライアント切断要求: {name}")
+    return {"status": "left"}
+
+@app.post("/name_check")
+async def name_check(request: Request):
+    global connected_socket
+    try:
+        data = await request.json()
+        target_name = data.get("name")
+        if not target_name:
+            return JSONResponse({"status": "error", "reason": "名前が指定されていません"})
+        
+        print(f"名前: {target_name}")
+        return JSONResponse({"status": "ok"})
+    except Exception as e:
+        print(f"エラー発生: {e}")

@@ -52,12 +52,24 @@ export const useWebSocketStore = defineStore('websocket', {
       }
     },
 
-    disconnect() {
+    disconnect({ isUnload = false } = {}) {
       if (this.socket) {
         this.socket.close()
         this.socket = null
         this.isConnected = false
+        console.log('🔌 WebSocketをクライアントから切断しました')
       }
-    },
+
+      if (isUnload) {
+        console.log('📡 /leave API に切断通知を送信します')
+        fetch('http://localhost:10001/leave', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'userName' })  // userName を適宜取得
+        }).catch(err => {
+          console.error('❌ /leave リクエスト失敗:', err)
+        })
+      }
+    }
   },
 })
