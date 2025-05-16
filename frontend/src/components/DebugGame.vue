@@ -49,6 +49,7 @@ function hasMove(c:1|2){
 
 /* ---------- main actions ---------- */
 function placeStone(x:number,y:number){
+  console.log("x: " + x + "y: " + y)
   if(gameOver.value) return
   if(board.value[y][x]!==0) return
   const flips=captures(x,y,turn.value);
@@ -58,11 +59,24 @@ function placeStone(x:number,y:number){
   advanceTurn()
 }
 
+
 function advanceTurn(){
   const n=opp(turn.value)
   if(hasMove(n)) turn.value=n
   else if(!hasMove(turn.value)) gameOver.value=true
 }
+
+// DebugGame.vue 内
+const validMoves = computed<[number, number][]>(() =>
+  board.value.flatMap((row, y) =>
+    row.flatMap((cell, x) =>
+      cell === 0 && captures(x, y, turn.value).length
+        ? [[x, y] as [number, number]]        // ←★ここでタプルにキャスト
+        : []
+    )
+  )
+)
+
 
 /* ---------- navigation ---------- */
 const router=useRouter()
@@ -82,7 +96,11 @@ const exit=()=>router.push('/')
       <div v-else>ゲーム終了</div>
     </div>
 
-    <OthelloBoard :board="board" @choose="placeStone" />
+    <OthelloBoard
+      :board="board"
+      :valid="validMoves"
+      @choose="placeStone" 
+    />
 
     <button class="btn-secondary mt-6" @click="exit">終了</button>
   </div>
