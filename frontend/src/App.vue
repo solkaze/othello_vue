@@ -2,25 +2,18 @@
   <router-view />
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted, onBeforeUnmount } from 'vue'
-import { useWebSocketStore } from '@/stores/websocket'
+import { useOthelloStore } from '@/stores/othello'
 
-const ws = useWebSocketStore()
+const store = useOthelloStore()
 
-// 🔌 ページ離脱時にだけ呼び出される切断処理
-const handleUnload = (event) => {
-  console.log('📤 ページ離脱に伴う WebSocket 切断要求')
-  ws.disconnect({ isUnload: true }) // leave API を叩くようにフラグ付きで呼ぶ
+function handleUnload () {
+  store.leave()    // ソケットをきれいに閉じる
 }
 
-onMounted(() => {
-  window.addEventListener('beforeunload', handleUnload)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('beforeunload', handleUnload)
-})
+onMounted(() => window.addEventListener('beforeunload', handleUnload))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', handleUnload))
 </script>
 
 <style>

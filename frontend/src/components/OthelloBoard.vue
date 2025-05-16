@@ -17,7 +17,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useWebSocketStore } from '@/stores/websocket'
+import { useUserStore } from '@/stores/user'
 
 // サイズ・盤面・手番
 const SIZE = 8
@@ -27,70 +30,38 @@ board.value[3][4] = 'B'
 board.value[4][3] = 'B'
 board.value[4][4] = 'W'
 const currentPlayer = ref('B')
-const myPlayer = ref('B') // ← 自分の色（B または W）
-const validMove = ref([])
+const myColor = ref()
+const validMoves = ref([])
 
-let ws = null
+const router = useRouter()
+const ws = useWebSocketStore()
+const store = useUserStore()
 
 onMounted(() => {
-  // WebSocket 接続
-  ws= new WebSocket('ws://localhost:10001/ws/othello')
-
-  ws.onopen = () => {
-    console.log("✅ WebSocket 接続完了")
-  }
-
-  ws.onmessage = (event) => {
-    const { row, col, player } = JSON.parse(event.data)
-    applyMove(row, col, player)
-  }
-
-  updateValidMove()
+  updateValidMoves()
 })
 
-const setupWebSocket = () => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    console.log("✅ すでにWebSocket接続済みです")
-    return
-  }
+const blackPlayer = computed(() => ({
+  name: store.myName,
+  ip: store.myIP
+}))
 
-  ws = new WebSocket('ws://localhost:10001/ws/othello')
+const whitePlayer = computed(() => ({
+  name: store.oppName,
+  ip: store.oppIP
+}))
 
-  ws.onopen = () => {
-    console.log("✅ WebSocket接続確立")
-    ws.send("hello vue")
-  }
+const handleClick = (row, col) => {
+  if (!isValidMove(row, col, currentPlayer.value)) return
 
-  ws.onmessage = (event) => {
-    const data = JSON.parse(event.data)
-    console.log("📩 メッセージ受信:", data)
-  }
+  board.value[row][col] = currentPlayer.value
+  flipStones(row, col, currentPlayer.value)
 
-  ws.onclose = () => {
-    console.log("🔌 WebSocket切断")
-  }
-
-  ws.onerror = (err) => {
-    console.error("❌ WebSocketエラー:", err)
-  }
+  currentPlayer.value = currentPlayer.value === 'B' ? 'W' : 'B'
+  updateValidMoves()
 }
 
-function handleClick(row, col) {
-  if (currentPlayer.value !== myPlayer.value) return
-  if (!isValidMove(row, col, myPlayer.value)) return
-
-  // WebSocket経由でサーバーに送信
-  ws.send(JSON.stringify({ row, col, player: myPlayer.value }))
-}
-
-function applyMove(row, col, player) {
-  board.value[row][col] = player
-  flipStones(row, col, player)
-  currentPlayer.value = player === 'B' ? 'W' : 'B'
-  updateValidMove()
-}
-
-function isValidMove(row, col, player) {
+const isValidMove = (row, col, player) => {
   if (board.value[row][col] !== '') return false
   const opponent = player === 'B' ? 'W' : 'B'
   const directions = [
@@ -100,19 +71,20 @@ function isValidMove(row, col, player) {
   ]
   for (const [dx, dy] of directions) {
     let x = row + dx, y = col + dy
-    let hasOpponentBetween = false
+    let foundOpponent = false
     while (x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === opponent) {
-      x += dx; y += dy
-      hasOpponentBetween = true
+      x += dx
+      y += dy
+      foundOpponent = true
     }
-    if (hasOpponentBetween && x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === player) {
+    if (foundOpponent && x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === player) {
       return true
     }
   }
   return false
 }
 
-function flipStones(row, col, player) {
+const flipStones = (row, col, player) => {
   const opponent = player === 'B' ? 'W' : 'B'
   const directions = [
     [-1, -1], [-1, 0], [-1, 1],
@@ -124,28 +96,36 @@ function flipStones(row, col, player) {
     const toFlip = []
     while (x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === opponent) {
       toFlip.push([x, y])
-      x += dx; y += dy
+      x += dx
+      y += dy
     }
     if (toFlip.length && x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === player) {
-      for (const [fx, fy] of toFlip) board.value[fx][fy] = player
-    }
-  }
-}
-
-function updateValidMove() {
-  validMove.value = []
-  for (let i = 0; i < SIZE; ++i) {
-    for (let j = 0; j < SIZE; ++j) {
-      if (isValidMove(i, j, currentPlayer.value)) {
-        validMove.value.push([i, j])
+      for (const [fx, fy] of toFlip) {
+        board.value[fx][fy] = player
       }
     }
   }
 }
 
-function isHint(row, col) {
-  return validMove.value.some(([r, c]) => r === row && c === col)
+const updateValidMoves = () => {
+  validMoves.value = []
+  for (let i = 0; i < SIZE; i++) {
+    for (let j = 0; j < SIZE; j++) {
+      if (isValidMove(i, j, currentPlayer.value)) {
+        validMoves.value.push([i, j])
+      }
+    }
+  }
 }
+
+const isHint = (row, col) => {
+  return validMoves.value.some(([r, c]) => r === row && c === col)
+}
+
+const exitGame = () => {
+  router.push('/')
+}
+
 </script>
 
 <style>
