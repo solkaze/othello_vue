@@ -1,215 +1,97 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+// Board props
+interface Props {
+  board: number[][]            // 0 = empty, 1 = black, 2 = white
+  valid?: [number, number][]   // 配置可能マスの座標リスト（任意）
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'choose', x: number, y: number): void
+}>()
+
+// 高速判定用に Set<string> へ変換
+const validSet = computed(() => {
+  if (!props.valid) return new Set<string>()
+  return new Set(props.valid.map(([x, y]) => `${x},${y}`))
+})
+
+function handle(x: number, y: number) {
+  emit('choose', x, y)
+}
+</script>
+
 <template>
   <div class="board">
-    <div v-for="(row, rowIndex) in board" :key="rowIndex" class="row">
-      <div
-        v-for="(cell, colIndex) in row"
-        :key="colIndex"
-        class="cell"
-        :class="{
-          black: cell === 'B',
-          white: cell === 'W',
-          hint: isHint(rowIndex, colIndex)
-        }"
-        @click="handleClick(rowIndex, colIndex)"
-      />
-    </div>
+    <table class="h-full w-full select-none">
+      <tr v-for="(row, y) in props.board" :key="y">
+        <td v-for="(cell, x) in row" :key="x" @click="handle(x, y)" class="cell">
+          <!-- Stones -->
+          <div v-if="cell === 1" class="stone stone-black" />
+          <div v-else-if="cell === 2" class="stone stone-white" />
+          <!-- Valid move indicator -->
+          <div
+            v-else-if="validSet.has(`${x},${y}`)"
+            class="indicator"
+          />
+        </td>
+      </tr>
+    </table>
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useWebSocketStore } from '@/stores/websocket'
-import { useUserStore } from '@/stores/user'
-
-// サイズ・盤面・手番
-const SIZE = 8
-const board = ref(Array.from({ length: SIZE }, () => Array(SIZE).fill('')))
-board.value[3][3] = 'W'
-board.value[3][4] = 'B'
-board.value[4][3] = 'B'
-board.value[4][4] = 'W'
-const currentPlayer = ref('B')
-const myColor = ref()
-const validMoves = ref([])
-
-const router = useRouter()
-const ws = useWebSocketStore()
-const store = useUserStore()
-
-onMounted(() => {
-  updateValidMoves()
-})
-
-const blackPlayer = computed(() => ({
-  name: store.myName,
-  ip: store.myIP
-}))
-
-const whitePlayer = computed(() => ({
-  name: store.oppName,
-  ip: store.oppIP
-}))
-
-const handleClick = (row, col) => {
-  if (!isValidMove(row, col, currentPlayer.value)) return
-
-  board.value[row][col] = currentPlayer.value
-  flipStones(row, col, currentPlayer.value)
-
-  currentPlayer.value = currentPlayer.value === 'B' ? 'W' : 'B'
-  updateValidMoves()
-}
-
-const isValidMove = (row, col, player) => {
-  if (board.value[row][col] !== '') return false
-  const opponent = player === 'B' ? 'W' : 'B'
-  const directions = [
-    [-1, -1], [-1, 0], [-1, 1],
-    [0, -1],          [0, 1],
-    [1, -1], [1, 0], [1, 1]
-  ]
-  for (const [dx, dy] of directions) {
-    let x = row + dx, y = col + dy
-    let foundOpponent = false
-    while (x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === opponent) {
-      x += dx
-      y += dy
-      foundOpponent = true
-    }
-    if (foundOpponent && x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === player) {
-      return true
-    }
-  }
-  return false
-}
-
-const flipStones = (row, col, player) => {
-  const opponent = player === 'B' ? 'W' : 'B'
-  const directions = [
-    [-1, -1], [-1, 0], [-1, 1],
-    [0, -1],          [0, 1],
-    [1, -1], [1, 0], [1, 1]
-  ]
-  for (const [dx, dy] of directions) {
-    let x = row + dx, y = col + dy
-    const toFlip = []
-    while (x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === opponent) {
-      toFlip.push([x, y])
-      x += dx
-      y += dy
-    }
-    if (toFlip.length && x >= 0 && x < SIZE && y >= 0 && y < SIZE && board.value[x][y] === player) {
-      for (const [fx, fy] of toFlip) {
-        board.value[fx][fy] = player
-      }
-    }
-  }
-}
-
-const updateValidMoves = () => {
-  validMoves.value = []
-  for (let i = 0; i < SIZE; i++) {
-    for (let j = 0; j < SIZE; j++) {
-      if (isValidMove(i, j, currentPlayer.value)) {
-        validMoves.value.push([i, j])
-      }
-    }
-  }
-}
-
-const isHint = (row, col) => {
-  return validMoves.value.some(([r, c]) => r === row && c === col)
-}
-
-const exitGame = () => {
-  router.push('/')
-}
-
-</script>
-
-<style>
+<style scoped>
+/* Board container */
 .board {
-  display: inline-block;
-  border: 8px solid #7b5e3c;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
-  background: repeating-linear-gradient(
-    45deg,
-    #228B22,
-    #228B22 10px,
-    #1e7b1e 10px,
-    #1e7b1e 20px
-  );
-  border-radius: 12px;
-  overflow: hidden;
+  width: 512px;
+  height: 512px;
+  background: #378805 url('https://cdn.jsdelivr.net/gh/andrews1022/images@main/wood-texture.png');
+  background-size: cover;
+  padding: 8px;
+  border-radius: 16px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
 }
-
-h2 {
-  font-size: 2em;
-  margin-bottom: 10px;
-}
-
-.row {
-  display: flex;
-}
-
+/* Cells */
 .cell {
-  width: 60px;
-  height: 60px;
-  background-color: rgba(34, 139, 34, 0.95);
-  border: 1px solid #444;
+  width: 56px;
+  height: 56px;
+  border: 2px solid #2f5d02;
+  background-color: rgba(0, 0, 0, 0.02);
   position: relative;
+  transition: background-color 0.15s;
   cursor: pointer;
-  transition: background-color 0.2s;
 }
-
 .cell:hover {
-  background-color: #2e8b57;
+  background-color: rgba(255, 255, 255, 0.15);
 }
-
-.cell.black::before,
-.cell.white::before {
-  content: '';
-  display: block;
-  width: 80%;
-  height: 80%;
+/* Stones */
+.stone {
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
-  margin: 10%;
-  box-shadow: inset -3px -3px 6px rgba(0, 0, 0, 0.6), inset 2px 2px 5px rgba(255, 255, 255, 0.3);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.4);
 }
-
-.cell.black::before {
-  background: radial-gradient(circle at 30% 30%, #444, #000);
+.stone-black {
+  background: radial-gradient(circle at 30% 30%, #444, #000 70%);
 }
-
-.cell.white::before {
-  background: radial-gradient(circle at 30% 30%, #eee, #bbb);
+.stone-white {
+  background: radial-gradient(circle at 30% 30%, #fff, #cfcfcf 70%);
 }
-
-.cell.hint::after {
-    content: '';
-    display: block;
-    width: 20%;
-    height: 20%;
-    background-color: yellow;
-    border-radius: 50%;
-    margin: auto;
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    opacity: 0.7;
-}
-
-
-.black {
-  color: #ccc;
-  font-weight: bold;
-}
-
-.white {
-  color: #f5f5f5;
-  font-weight: bold;
+/* Valid move indicator */
+.indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #ffe066, #d4a600 70%);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none; /* clicks pass through */
 }
 </style>
