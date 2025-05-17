@@ -141,22 +141,74 @@ class MatchMaker:
             )
 
     async def remove(self, p: Player):
-        room = self.rooms.get(p.room_id)
-        if not room:
+        # ① まず待機中だったケースを処理
+        if self.waiting_player is p:
+            self._unregister(p)
             return
 
-        # 退室したプレイヤー自身はここで pop 済み
+        # ② 進行中の部屋にいた場合
+        room = self.rooms.get(p.room_id)
+        if not room:
+            self._unregister(p)
+            return
+
+        # 退室した本人を部屋から外す
         if p.color in room.players:
             del room.players[p.color]
         elif p in room.spectators:
             room.spectators.remove(p)
 
-        # **残りが 1 人以上いれば** ソケットを全閉じ
+        # 残りがいれば全員 close
         if room.players or room.spectators:
             await room.close_all(reason=f"{p.name} left")
 
-        # 最後にルームオブジェクトを MatchMaker からも削除
-        del self.rooms[p.room_id]
+            # close_all で切った人たちも players から削除
+            for q in list(room.players.values()):
+                self._unregister(q)
+            for q in room.spectators:
+                self._unregister(q)
+
+        # ルーム削除 & 自分も解除
+        self.rooms.pop(p.room_id, None)
+        self._unregister(p)
+    async def remove(self, p: Player):
+        # ① まず待機中だったケースを処理
+        if self.waiting_player is p:
+            self._unregister(p)
+            return
+
+        # ② 進行中の部屋にいた場合
+        room = self.rooms.get(p.room_id)
+        if not room:
+            self._unregister(p)
+            return
+
+        # 退室した本人を部屋から外す
+        if p.color in room.players:
+            del room.players[p.color]
+        elif p in room.spectators:
+            room.spectators.remove(p)
+
+        # 残りがいれば全員 close
+        if room.players or room.spectators:
+            await room.close_all(reason=f"{p.name} left")
+
+            # close_all で切った人たちも players から削除
+            for q in list(room.players.values()):
+                self._unregister(q)
+            for q in room.spectators:
+                self._unregister(q)
+
+        # ルーム削除 & 自分も解除
+        self.rooms.pop(p.room_id, None)
+        self._unregister(p)
+
+    
+    def _unregister(self, p: Player):
+        """self.players / waiting_player から確実に外す"""
+        self.players.pop(p.name, None)
+        if self.waiting_player is p:
+            self.waiting_player = None
 
 async def safe_close(ws):
     # Starlette ≥0.33 では .application_state で判定できる
