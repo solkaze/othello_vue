@@ -63,7 +63,22 @@ class Room:
                 await ws.send_json(payload)
             except Exception:
                 # ログだけ残して続行。ここで raise しない
-                import logging; logging.warning("broadcast failed", exc_info=True)
+                import logging; logging.warning("broadcast failed")
+
+    async def close_all(self, *, reason: str = "player_left"):
+        """
+        参加者（プレイヤー + 観戦者）全員の WebSocket を
+        正常コード 4000 で Close し、内部リストも空にする。
+        """
+        targets = [p.websocket for p in self.players.values()] + self.spectators
+        for ws in targets:
+            try:
+                await ws.close(code=4000, reason=reason)
+            except Exception:
+                pass                    # すでに切れていても無視
+            
+        self.players.clear()
+        self.spectators.clear()
 
 
 class MatchMaker:
@@ -126,33 +141,22 @@ class MatchMaker:
             )
 
     async def remove(self, p: Player):
-        # 待機キューにいる？
-        if self.waiting_player is p:
-            self.waiting_player = None
+        room = self.rooms.get(p.room_id)
+        if not room:
+            return
 
-        # 部屋から除外
-        if p.room_id and p.room_id in self.rooms:
-            room = self.rooms[p.room_id]
+        # 退室したプレイヤー自身はここで pop 済み
+        if p.color in room.players:
+            del room.players[p.color]
+        elif p in room.spectators:
+            room.spectators.remove(p)
 
-            if p.role == "player":
-                # 対戦プレイヤーが退室 → 全員切断して部屋を削除
-                try:
-                    await room.broadcast({"type": "leave", "message": f"{p.name} が退室しました"})
-                except Exception:
-                    pass
-                for ws in [pl.websocket for pl in room.players.values()] + [sp.websocket for sp in room.spectators]:
-                    try:
-                        await ws.close()
-                    except Exception:
-                        pass
-                del self.rooms[p.room_id]
-            else:
-                # Spectator の場合はリストから外すだけ
-                room.spectators = [s for s in room.spectators if s is not p]
+        # **残りが 1 人以上いれば** ソケットを全閉じ
+        if room.players or room.spectators:
+            await room.close_all(reason=f"{p.name} left")
 
-        # 最後に全体リストから除外
-        self.players.pop(p.name, None)
-
+        # 最後にルームオブジェクトを MatchMaker からも削除
+        del self.rooms[p.room_id]
 
 async def safe_close(ws):
     # Starlette ≥0.33 では .application_state で判定できる

@@ -53,6 +53,15 @@ export const useOthelloStore = defineStore('othello', () => {
     ws.value.onmessage = (ev) => handle(JSON.parse(ev.data))
     ws.value.onerror   = () => reset()
 
+    ws.value.onclose = (ev) => {
+      if (ev.code === 4000) {
+        alert('相手が退室しました')
+      } else {
+        alert('接続が切れました')
+      }
+      reset()               // 盤面リセット & ルート遷移
+    }
+
     status.value = 'waiting'
   }
 
@@ -84,10 +93,6 @@ export const useOthelloStore = defineStore('othello', () => {
       case 'move':
         board[m.y][m.x] = m.color === 'black' ? 1 : 2
         turn.value = m.color === 'black' ? 'white' : 'black'
-        break
-      case 'leave':
-        alert('相手が退室しました')
-        reset()
         break
       case 'spectator_join':
         spectators.value.push(m.name)
