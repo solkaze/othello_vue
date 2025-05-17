@@ -11,12 +11,12 @@ export const useOthelloStore = defineStore('othello', () => {
 
   /* ----- state ----- */
   const spectators = ref<string[]>([])
-  const ws        = ref<WebSocket | null>(null)
-  const player    = ref('')
-  const opponent  = ref('')
-  const room      = ref('')
-  const color     = ref<Color>('black')
-  const status    = ref<Status>('idle')
+  const ws         = ref<WebSocket | null>(null)
+  const player     = ref('')
+  const opponent   = ref('')
+  const room       = ref('')
+  const color      = ref<Color>('black')
+  const status     = ref<Status>('idle')
 
   const board = reactive<number[][]>(
     Array.from({ length: 8 }, () => Array(8).fill(0))
@@ -117,6 +117,8 @@ export const useOthelloStore = defineStore('othello', () => {
   return {
     spectators,
     ws, player,
+    setFirstTurn,
+    firstTurn,
     opponent,
     room,
     color,
