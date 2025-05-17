@@ -154,6 +154,16 @@ class MatchMaker:
         self.players.pop(p.name, None)
 
 
+async def safe_close(ws):
+    # Starlette ≥0.33 では .application_state で判定できる
+    if ws.application_state != WebSocketState.DISCONNECTED:
+        try:
+            await ws.close()
+        except RuntimeError:
+            # すでに close 済みだった場合は何もしない
+            pass
+
+
 matchmaker = MatchMaker()
 
 # ------------------------------------------------------------
@@ -243,13 +253,15 @@ async def websocket_endpoint(websocket: WebSocket, name: str):
                 await player.send({"type": "error", "message": "未知のメッセージタイプ"})
 
     except WebSocketDisconnect:
+        # クライアント側が自発的に切っただけ。後始末だけ行う
         await matchmaker.remove(player)
-
     except Exception as exc:
-        if websocket.application_state != WebSocketState.DISCONNECTED:
-            await player.send({"type": "error", "message": str(exc)})
+        # 想定外のエラー時だけクライアントへ通知
+        if websocket.application_state == WebSocketState.CONNECTED:
+            await websocket.send_json({"type": "error", "message": str(exc)})
         await matchmaker.remove(player)
-        await websocket.close()
+    finally:
+        await safe_close(websocket)
 
 
 # ------------------------------------------------------------
