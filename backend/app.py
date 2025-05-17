@@ -144,7 +144,6 @@ class MatchMaker:
         # ① まず待機中だったケースを処理
         if self.waiting_player is p:
             self._unregister(p)
-            return
 
         # ② 進行中の部屋にいた場合
         room = self.rooms.get(p.room_id)

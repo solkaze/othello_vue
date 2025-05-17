@@ -12,11 +12,12 @@ export const useOthelloStore = defineStore('othello', () => {
   /* ----- state ----- */
   const spectators = ref<string[]>([])
   const ws         = ref<WebSocket | null>(null)
-  const player     = ref('')
-  const opponent   = ref('')
+  const player     = ref<string>('')              // 自分の名前
+  const opponent   = ref<string>('')              // 相手の名前
   const room       = ref('')
   const color      = ref<Color>('black')
   const status     = ref<Status>('idle')
+  
 
   const board = reactive<number[][]>(
     Array.from({ length: 8 }, () => Array(8).fill(0))
@@ -113,8 +114,15 @@ export const useOthelloStore = defineStore('othello', () => {
   }
 
   function reset () {
+    // ① ソケットを閉じる（既に CLOSED でもエラーにならない）
     ws.value?.close()
-    ws.value   = null
+    ws.value = null
+
+    // ② 名前関連をクリア
+    opponent.value = ''
+    /* player.value は残す／消す どちらでも可 */
+
+    // ③ 盤面・状態を初期化
     status.value = 'idle'
     router.push('/')
   }
