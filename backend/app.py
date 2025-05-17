@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Optional, List
+from starlette.websockets import WebSocketState
 import uuid
 from pydantic import BaseModel
 
@@ -47,16 +48,22 @@ class Room:
     def opponent_of(self, color: str) -> Player:
         return self.players["white" if color == "black" else "black"]
 
-    async def broadcast(self, payload: dict, *, include_players: bool = True, include_spectators: bool = True):
-        """部屋の全員に同報送信。役割でフィルタ可能"""
-        targets: List[WebSocket] = []
+    async def broadcast(self, payload: dict, *, include_players=True, include_spectators=True):
+        targets = []
         if include_players:
             targets.extend(p.websocket for p in self.players.values())
         if include_spectators:
             targets.extend(s.websocket for s in self.spectators)
 
         for ws in targets:
-            await ws.send_json(payload)
+            try:
+                # すでに閉じていないか念のため確認
+                if ws.application_state == WebSocketState.DISCONNECTED:
+                    continue
+                await ws.send_json(payload)
+            except Exception:
+                # ログだけ残して続行。ここで raise しない
+                import logging; logging.warning("broadcast failed", exc_info=True)
 
 
 class MatchMaker:
@@ -129,7 +136,10 @@ class MatchMaker:
 
             if p.role == "player":
                 # 対戦プレイヤーが退室 → 全員切断して部屋を削除
-                await room.broadcast({"type": "leave", "message": f"{p.name} が退室しました"})
+                try:
+                    await room.broadcast({"type": "leave", "message": f"{p.name} が退室しました"})
+                except Exception:
+                    pass
                 for ws in [pl.websocket for pl in room.players.values()] + [sp.websocket for sp in room.spectators]:
                     try:
                         await ws.close()
@@ -236,7 +246,8 @@ async def websocket_endpoint(websocket: WebSocket, name: str):
         await matchmaker.remove(player)
 
     except Exception as exc:
-        await player.send({"type": "error", "message": str(exc)})
+        if websocket.application_state != WebSocketState.DISCONNECTED:
+            await player.send({"type": "error", "message": str(exc)})
         await matchmaker.remove(player)
         await websocket.close()
 
