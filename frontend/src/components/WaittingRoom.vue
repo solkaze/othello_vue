@@ -28,18 +28,18 @@ watch(
 )
 
 // サーバーから途中で leave が来たとき
-onMounted(() => {
-  store.ws?.addEventListener('message', (ev) => {
-    const m = JSON.parse(ev.data)
-    if (m.type === 'matched') {
-      store.opponent = m.black === store.player ? m.white : m.black
-    }
-    else if (m.type === 'leave') {
-      alert('相手が退室しました')
-      router.push('/')
-    }
-  })
-})
+// onMounted(() => {
+//   store.ws?.addEventListener('message', (ev) => {
+//     const m = JSON.parse(ev.data)
+//     if (m.type === 'matched') {
+//       store.opponent = m.black === store.player ? m.white : m.black
+//     }
+//     else if (m.type === 'leave') {
+//       alert('相手が退室しました')
+//       router.push('/')
+//     }
+//   })
+// })
 
 function startGame () {
   if (!store.ws) return        // 念のため null ガード
