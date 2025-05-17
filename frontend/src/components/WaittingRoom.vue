@@ -31,22 +31,26 @@ watch(
 onMounted(() => {
   store.ws?.addEventListener('message', (ev) => {
     const m = JSON.parse(ev.data)
-    if (m.type === 'leave') {
+    if (m.type === 'matched') {
+      store.opponent = m.black === store.player ? m.white : m.black
+    }
+    else if (m.type === 'leave') {
       alert('相手が退室しました')
       router.push('/')
     }
   })
 })
 
-function startGame() {
-  // 先手決定ロジック: 自分の color と firstTurn の関係で board ターンを初期化
-  if (firstTurn.value === 'random') {
-    // 50% で変更
-    if (Math.random() < 0.5) firstTurn.value = 'black'
-    else firstTurn.value = 'white'
-  }
-  store.setFirstTurn(firstTurn.value)
-  router.push('/game')
+function startGame () {
+  if (!store.ws) return        // 念のため null ガード
+  store.setFirstTurn(firstTurn.value)   // ラジオで選んだ値を確定
+
+  store.ws.send(
+    JSON.stringify({
+      type: 'start_request',
+      first: store.firstTurn    // 'black' | 'white'
+    })
+  )
 }
 
 function cancel() {

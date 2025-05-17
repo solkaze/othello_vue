@@ -111,7 +111,7 @@ class MatchMaker:
 
             await room.broadcast(
                 {
-                    "type": "start",
+                    "type": "matched",
                     "room": room_id,
                     "black": p1.name,
                     "white": p2.name,
@@ -182,6 +182,16 @@ async def websocket_endpoint(websocket: WebSocket, name: str):
                             "white": room.players["white"].name,
                         }
                     )
+                elif msg_type == "start_request":
+                    room = matchmaker.rooms.get(player.room_id)
+                    if room:
+                        await room.broadcast(
+                            {
+                                "type": "start",
+                                "room": player.room_id,
+                                "first": data.get("first", "black"),
+                            }
+                        )
                 elif msg_type == "leave":
                     await matchmaker.remove(player)
                     await websocket.close()
