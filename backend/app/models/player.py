@@ -5,12 +5,12 @@ from fastapi import WebSocket
 class Player:
     """WebSocket 1 本 = 1 Player or Spectator"""
 
-    def __init__(self, name: str, websocket: WebSocket, role: str = "player") -> None:
+    def __init__(self, name: str, websocket: WebSocket, role: str = "player", host: bool = False) -> None:
         self.name: str = name
         self.websocket: WebSocket = websocket
         self.role: str = role              # "player" | "spectator"
+        self.ishost: bool = host
         self.room_id: Optional[str] = None
-        self.color: Optional[str] = None   # "black" | "white"
 
     # 便利ラッパ
     async def send(self, data: dict):

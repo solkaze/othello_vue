@@ -1,7 +1,10 @@
 from __future__ import annotations
 from typing import Dict, Optional, List
 import uuid
+import hashlib
 from fastapi import HTTPException
+import logging
+logging.basicConfig(level=logging.INFO)
 
 from app.models.player import Player
 from app.models.room import Room
@@ -15,8 +18,9 @@ class MatchMaker:
         self.players: Dict[str, Player] = {}
 
     # --- player 登録 ---
-    async def add_player(self, p: Player):
+    async def add_player(self, p: Player, room_id: str):
         if p.name in self.players:
+            logging.info("名前の重複不可")
             raise HTTPException(400, "同名が接続中です")
         self.players[p.name] = p
 
@@ -25,28 +29,33 @@ class MatchMaker:
             return
 
         # ---- player マッチング ----
-        if self.waiting_player is None:
-            self.waiting_player = p
-            await p.send({"type": "wait", "message": "対戦相手を待機中..."})
-            return
+        room = self.rooms[room_id]
+        room.add_player(p)
 
         # 既に待機者がいる → ルーム作成
-        p1, p2 = self.waiting_player, p
+        p1, p2 = room.players["black"], room.players["white"]
         self.waiting_player = None
+        logging.info(f"id: {room_id}")
 
-        room_id = str(uuid.uuid4())
-        room = Room(room_id, black=p1, white=p2)
-        self.rooms[room_id] = room
-
-        p1.room_id = p2.room_id = room_id
-        p1.color, p2.color = "black", "white"
+        p2.room_id = room_id
 
         await room.broadcast({
             "type": "matched",
             "room": room_id,
-            "black": p1.name,
-            "white": p2.name,
+            "player1": p1.name,
+            "player2": p2.name,
         })
+    
+    # --- 部屋建て ---
+    async def create_room(self, p: Player):
+        room_id = generate_hash_id()
+        room = Room(room_id, player1=p)
+        self.rooms[room_id] = room
+        logging.info(f"id: {room_id}")
+        p.room_id = room_id
+        logging.info(f"waiting player: {p.name}")
+        await p.send({"type": "wait", "message": "対戦相手を待機中...", "room": room_id})
+        return
 
     # --- player 離脱 ---
     async def remove_player(self, p: Player):
@@ -59,11 +68,9 @@ class MatchMaker:
             self._unregister(p)
             return
 
-        # 部屋から外す
-        if p.color in room.players:
-            del room.players[p.color]
-        elif p in room.spectators:
+        if p in room.spectators:
             room.spectators.remove(p)
+            return
 
         # 残りがいれば全員 close
         if room.players or room.spectators:
@@ -93,6 +100,11 @@ class MatchMaker:
                 for r in self.rooms.values()
             ],
         }
+
+def generate_hash_id(length=5):
+    base = str(uuid.uuid4())
+    hash_value = hashlib.sha1(base.encode()).hexdigest()  # SHA-1の16進数
+    return hash_value[:length]
 
 # singleton
 matchmaker = MatchMaker()

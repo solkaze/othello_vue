@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+type Stone = 'black' | 'white' | null
 // Board props
 interface Props {
-  board: number[][]            // 0 = empty, 1 = black, 2 = white
+  board: Stone[][]            // 0 = empty, 1 = black, 2 = white
   valid?: [number, number][]   // 配置可能マスの座標リスト（任意）
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
-  (e: 'choose', x: number, y: number): void
+  (e: 'place', x: number, y: number): void
 }>()
 
 // 高速判定用に Set<string> へ変換
@@ -18,7 +19,7 @@ const validSet = computed(() => {
 })
 
 function handle(x: number, y: number) {
-  emit('choose', x, y)
+  emit('place', x, y)
 }
 </script>
 
@@ -28,8 +29,8 @@ function handle(x: number, y: number) {
       <tr v-for="(row, y) in props.board" :key="y">
         <td v-for="(cell, x) in row" :key="x" @click="handle(x, y)" class="cell">
           <!-- Stones -->
-          <div v-if="cell === 1" class="stone stone-black" />
-          <div v-else-if="cell === 2" class="stone stone-white" />
+          <div v-if="cell === 'black'" class="stone stone-black" />
+          <div v-else-if="cell === 'white'" class="stone stone-white" />
           <!-- Valid move indicator -->
           <div
             v-else-if="validSet.has(`${x},${y}`)"

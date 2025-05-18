@@ -1,55 +1,82 @@
 import { defineStore } from 'pinia'
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
-type Color = 'black' | 'white'
+type Color = 'black' | 'white' | null
 type Status = 'idle' | 'waiting' | 'playing'
+
 
 export const useOthelloStore = defineStore('othello', () => {
   const router = useRouter()
-  const firstTurn = ref<'black' | 'white'>('black')
+  const firstTurn = ref('')
 
   /* ----- state ----- */
   const spectators = ref<string[]>([])
   const ws         = ref<WebSocket | null>(null)
   const player     = ref<string>('')              // 自分の名前
   const opponent   = ref<string>('')              // 相手の名前
+  const network    = ref<string>('localhost')
   const room       = ref('')
-  const color      = ref<Color>('black')
+  const my_color   = ref<Color>('black')
+  const opp_color  = ref<Color>('white')
   const status     = ref<Status>('idle')
+  const isHost     = ref<boolean>(false)
   
-
-  const board = reactive<number[][]>(
-    Array.from({ length: 8 }, () => Array(8).fill(0))
-  )
   const turn = ref<Color>('black')
 
-  function setFirstTurn(choice: 'random' | 'black' | 'white') {
+  // --- state ---------------------------------
+  const lastMove = ref<{ x: number; y: number; color: 'black' | 'white' | null } | null>(null)
+
+
+  function setFirstTurn(choice: 'random' | 'me' | 'opp') {
     firstTurn.value =
       choice === 'random'
-        ? (Math.random() < 0.5 ? 'black' : 'white')
-        : choice
+        ? (Math.random() < 0.5 ? player.value : opponent.value)
+        : choice === 'me' ? player.value : opponent.value
   }
 
   /* ----- actions ----- */
-  async function nameCheck (name: string) {
-    const res = await fetch('http://localhost:10001/name_check', {
+  async function nameCheck (name: string, room_id: string) {
+    const res = await fetch(`http://${network.value}:10001/name_check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, room_id })
     })
     return (await res.json()).ok as boolean
   }
 
-  function resetBoardAndStart() {
-    /* board 初期化 + turn = firstTurn.value */
+  async function roomCheck (room_id: string) {
+    const res = await fetch(`http://${network.value}:10001/room_check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room_id })
+    })
+    return (await res.json()).ok as boolean
   }
 
-  async function connect(name: string, host = 'localhost', role: 'player' | 'spectator' = 'player') {
-    if (!(await nameCheck(name))) throw new Error('duplicate')
+  async function connect(name: string,
+    net = 'localhost',
+    role: 'player' | 'spectator' = 'player',
+    host: boolean = false,
+    room_id: string
+  ) {
+    network.value = net
+    if (!host) {
+      if (!(await roomCheck(room_id))) {
+        console.log("error: ルームID不正")
+        throw new Error('invalid room id')
+      }
+      if (!(await nameCheck(name, room_id))) {
+        console.log("error: 名前重複")
+        throw new Error('duplicate name')
+      }
+      room.value = room_id
+    }
 
     player.value = name
-    ws.value = new WebSocket(`ws://${host}:10001/ws/othello/${encodeURIComponent(name)}?role=${role}`)
+    isHost.value = host
+    console.log('connect', name, net, role, host)
+    ws.value = new WebSocket(`ws://${net}:10001/ws/othello/${encodeURIComponent(name)}?role=${role}&host=${host}&room=${room_id}`)
 
     ws.value.onmessage = (ev) => handle(JSON.parse(ev.data))
     ws.value.onerror   = () => reset()
@@ -72,28 +99,39 @@ export const useOthelloStore = defineStore('othello', () => {
   }
 
   function leave () {
-    if (ws.value) ws.value.send(JSON.stringify({ type: 'leave' }))
-    reset()
+    if (ws.value){
+      ws.value.send(JSON.stringify({ type: 'leave' }))
+      reset()
+    }
   }
 
   /* ----- private: WS handler ----- */
   function handle (m: any) {
     switch (m.type) {
+      case 'matched':
+        console.log('player1', m.player1, 'player2', m.player2)
+        opponent.value = player.value === m.player1 ? m.player2 : m.player1
+        console.log('opponent: ', opponent.value)
+        break
       case 'wait':
-        // 何もしない（待機中）
+        console.log('wait: ',m.message)
+        room.value = m.room
         break
       case 'start':
-        spectators.value = []   
-        room.value   = m.room
-        opponent.value = m.opponent
-        color.value  = m.color
+        firstTurn.value = m.first
+        my_color.value = player.value === m.black ? 'black' : 'white'
+        opp_color.value = player.value === m.black ? 'white' : 'black'
+        console.log("first: ", firstTurn.value)
+        console.log("自分の色: ", my_color.value)
         status.value = 'playing'
         resetBoard()
+        console.log("turn: ", turn.value)
         router.push('/game')
         break
       case 'move':
-        board[m.y][m.x] = m.color === 'black' ? 1 : 2
-        turn.value = m.color === 'black' ? 'white' : 'black'
+        console.log("move: ", m.turn, "x: ", m.x, "y: ", m.y)
+        lastMove.value = { x: m.x, y: m.y, color: m.turn === player.value ? my_color.value : opp_color.value }
+        turn.value = m.turn === player.value ? opp_color.value : my_color.value
         break
       case 'spectator_join':
         spectators.value.push(m.name)
@@ -108,7 +146,6 @@ export const useOthelloStore = defineStore('othello', () => {
   }
 
   function resetBoard () {
-    for (const row of board) row.fill(0)
     // 初期４石などを置きたければここで
     turn.value = 'black'
   }
@@ -130,16 +167,19 @@ export const useOthelloStore = defineStore('othello', () => {
   return {
     spectators,
     ws, player,
+    isHost,
     setFirstTurn,
     firstTurn,
     opponent,
     room,
-    color,
-    board,
+    my_color,
+    opp_color,
     turn,
     status,
     connect,
     sendMove,
-    leave
+    leave,
+    lastMove,
+    clearLastMove () { lastMove.value = null },
   }
 })
