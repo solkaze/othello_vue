@@ -1,160 +1,94 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useOthelloStore } from '@/stores/othello'
+import { useRouter } from 'vue-router'
+
+const store = useOthelloStore()
+const router = useRouter()
+
+const name = ref('')
+const network = ref('localhost')
+const roomId = ref('')
+const errorMsg = ref('')
+
+async function connect(
+  role: 'player' | 'spectator',
+  isHost: boolean = false
+) {
+  errorMsg.value = ''
+  if (!name.value) {
+    errorMsg.value = '名前を入力してください'
+    return
+  }
+  if (!isHost && !roomId.value) {
+    errorMsg.value = 'ROOM_IDを入力してください'
+    return
+  } else if (isHost && roomId.value) {
+    errorMsg.value = 'ROOM_IDは入力しないでください'
+    return
+  }
+  try {
+    await store.connect(name.value, network.value, role, isHost, roomId.value) // ★ store 側で (name, network, role) に対応させる
+    if (role === 'player') {
+      router.push('/wait')
+    } else {
+      router.push('/spectate') // 観戦画面を別途用意 今はまだ作っていない
+    }
+  } catch (e: any) {
+    errorMsg.value = '接続に失敗しました: ' + (e?.message ?? '')
+  }
+}
+
+function debugLocal() {
+  router.push('/debug') // ローカルデバッグ用ルート
+}
+</script>
+
 <template>
-  <div class="connect-screen">
-    <h2>オセロ 対戦接続</h2>
-    <div class="card-container">
-      <!-- 接続する側 -->
-      <div class="card">
-        <h3>対戦相手に接続</h3>
-        <input
-          v-model="ipAddress"
-          type="text"
-          placeholder="相手のIPアドレスを入力"
-        />
-        <input
-          v-model="userName"
-          type="text"
-          placeholder="名前を入力してください"
-        />
-        <button @click="connectToOpponent">接続する</button>
-        <button @click="connectToOpponent">試合を観戦</button>
+  <div class="min-h-screen bg-gradient-to-b from-sky-50 to-sky-200 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg p-8 space-y-6">
+      <h1 class="text-2xl font-semibold text-center">オンラインオセロ</h1>
+
+      <div class="space-y-4">
+        <label class="block">
+          <span class="text-sm font-medium text-gray-700">名前</span>
+          <input v-model="name" type="text" placeholder="name" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-sky-400" />
+        </label>
+
+        <label class="block">
+          <span class="text-sm font-medium text-gray-700">接続先 IP / ホスト名</span>
+          <input v-model="network" type="text" placeholder="localhost または 192.168.0.42" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-sky-400" />
+        </label>
+
+        <label class="block">
+          <span class="text-sm font-medium text-gray-700">部屋ID(接続時使用)</span>
+          <input v-model="roomId" type="text" placeholder="XXXXX" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-sky-400" />
+        </label>
+
+        <p v-if="errorMsg" class="text-sm text-red-600">{{ errorMsg }}</p>
       </div>
 
-      <!-- 接続を待機する側 -->
-      <div class="card">
-        <h3>接続を待機</h3>
-        <input
-          v-model="userName"
-          type="text"
-          placeholder="名前を入力してください"
-        />
-        <button @click="waitForConnection" :disabled="isWaiting">待機開始</button>
-      </div>
-      <div class="card">
-        <h3>一人で練習</h3>
-        <button @click="startLocalGame">ゲーム開始</button>
+      <div class="grid grid-cols-2 gap-4">
+        <button @click="connect('player', true)" class="col-span-2 btn-primary">ホストとして接続</button>
+        <button @click="connect('player')" class="col-span-2 btn-secondary">対戦相手として接続</button>
+        <button @click="connect('spectator')" class="btn-tertiary">観戦者として接続</button>
+        <button @click="debugLocal" class="btn-outline">ローカルデバッグ</button>
       </div>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useWebSocketStore } from '@/stores/websocket'
-import { useUserStore } from '@/stores/user'
-
-const ipAddress = ref('')
-const userName = ref('')
-const isWaiting = ref(false)
-const router = useRouter()
-const ws = useWebSocketStore()
-const store = useUserStore()
-
-onMounted(() => {
-  if (!ws.isConnected) {
-    ws.connect()
-  }
-})
-
-const connectToOpponent = () => {
-  fetch(`http://localhost:10001/connect`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ip: ipAddress.value, name: userName.value })
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === 'ok') {
-        alert('接続成功しました')
-        store.oppIP = ipAddress.value
-        store.myName = userName.value
-        router.push('/game')
-      } else {
-        alert('接続失敗: ' + data.reason)
-      }
-    })
-    .catch(err => {
-      console.error(err)
-      alert('接続に失敗しました')
-    })
-}
-
-const waitForConnection = () => {
-  fetch('http://localhost:10001/name_check', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: userName.value })
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === 'ok') {
-        isWaiting.value = true
-        store.myName = userName.value
-        router.push('/waitting')
-      } else {
-        alert('接続失敗: ' + data.reason)
-      }
-    })
-    .catch(err => {
-      console.error(err)
-      alert('接続待機に失敗しました')
-    })
-}
-
-const startLocalGame = () => {
-  router.push('/local')
-}
-</script>
-
 <style scoped>
-.connect-screen {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 40px;
-  margin-top: 50px;
-  color: var(--text-color);
+.btn-primary {
+  @apply w-full px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-lg shadow transition;
 }
-
-.card-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 40px;
-  margin-top: 30px;
-  flex-wrap: wrap;
+.btn-secondary {
+  @apply w-full px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg shadow transition;
 }
-
-
-.card {
-  flex: 1 1 calc(50% - 40px);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 2em;
-  max-width: 400px;
-  min-width: 350px;
-  box-sizing: border-box;
-  background-color: var(--card-bg);
-  transition: background-color 0.5s border-color 0.3s;
-  box-shadow: 0 2px 6px rgba(120, 120, 120, 10.5);
+.btn-tertiary {
+  @apply w-full px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg shadow transition;
 }
-
-input, button {
-  width: 100%;
-  padding: 0.5em;
-  font-size: 1em;
-  margin-top: 0.5em;
-  box-sizing: border-box;
-}
-
-button {
-  padding: 0.5em 1em;
-  font-size: 1em;
-}
-
-p {
-  margin-top: 1em;
-  color: var(--text-muted);
+.btn-outline {
+  @apply w-full px-4 py-2 border border-gray-400 text-gray-700 hover:bg-gray-50 rounded-lg transition;
 }
 </style>
-
