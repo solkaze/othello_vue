@@ -160,6 +160,11 @@ function advanceTurn() {
   }
 }
 
+function remove() {
+  store.leave(4000)
+  router.push("/")
+} 
+
 /* ---------- valid moves (for indicator) ---------- */
 const validMoves = computed<[number, number][]>(() =>
   board.value.flatMap((row, y) =>
@@ -196,7 +201,7 @@ const validMoves = computed<[number, number][]>(() =>
       </div>
       <!-- =========================================================== -->
 
-      <button class="mt-6 px-40 py-4 rounded-3xl bg-red-500 text-white" @click="store.leave">
+      <button class="mt-6 px-40 py-4 rounded-3xl bg-red-500 text-white" @click="remove">
         退室
       </button>
     </div>

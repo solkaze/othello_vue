@@ -28,15 +28,15 @@ watch(
 )
 
 // サーバーから途中で leave が来たとき
-onMounted(() => {
-  store.ws?.addEventListener('message', (ev) => {
-    const m = JSON.parse(ev.data)
-    if (m.type === 'leave') {
-      alert('相手が退室しました')
-      router.push('/')
-    }
-  })
-})
+// onMounted(() => {
+//   store.ws?.addEventListener('message', (ev) => {
+//     const m = JSON.parse(ev.data)
+//     if (m.type === 'leave') {
+//       alert('相手が退室しました')
+//       router.push('/')
+//     }
+//   })
+// })
 
 function startGame () {
   if (!store.ws) return        // 念のため null ガード
@@ -50,7 +50,8 @@ function startGame () {
 }
 
 function cancel() {
-  store.leave()
+  console.log("waittingRoom_leave")
+  store.leave(4000)
   router.push('/')
 }
 </script>

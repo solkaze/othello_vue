@@ -48,7 +48,7 @@ class Room:
             except Exception:
                 import logging; logging.warning("broadcast failed", exc_info=True)
 
-    async def close_all(self, *, reason: str = "player_left"):
+    async def close_all(self, *,code: int = 1000, reason: str = "player_left"):
         targets = [p.websocket for p in self.players.values() if p is not None] + self.spectators
         logging.info("close_all")
         logging.info(self.players)
@@ -58,7 +58,7 @@ class Room:
                 logging.info(f"{ws}")
                 reason = f"{ws} close"
                 logging.info(f"code: 4000")
-                await ws.close(code=4000, reason=reason)
+                await ws.close(code=code, reason=reason)
             except Exception:
                 pass
         self.players.clear()

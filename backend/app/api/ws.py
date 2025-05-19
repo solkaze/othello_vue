@@ -45,7 +45,9 @@ async def websocket_endpoint(websocket: WebSocket, name: str):
                         "white": room.players["white"].name,
                     })
                 elif msg_type == "leave":
-                    await matchmaker.remove_player(player)
+                    code = data.get("code")
+                    logging.info(f"leave_code: {code}")
+                    await matchmaker.remove_player(p=player, code=code)
                     break
                 else:
                     await player.send({"type": "error", "message": "Spectator はこの操作を行えません"})
@@ -104,7 +106,9 @@ async def websocket_endpoint(websocket: WebSocket, name: str):
                     })
 
             elif msg_type == "leave":
-                await matchmaker.remove_player(player)
+                code = data.get("code")
+                logging.info(f"leave_code: {code}")
+                await matchmaker.remove_player(p=player, code=code)
                 break
 
             else:
