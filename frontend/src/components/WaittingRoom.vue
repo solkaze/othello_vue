@@ -59,7 +59,7 @@ function cancel() {
   <div class="min-h-screen bg-gradient-to-b from-emerald-50 to-emerald-200 flex items-center justify-center p-4">
     <div class="w-full max-w-lg bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg p-8 space-y-6">
       <h2 class="text-xl font-semibold text-center">接続待機中</h2>
-      <h3 class="text-center">ルームID: {{ store.room }}</h3>
+      <h3 class="text-center">部屋ID: {{ store.room }}</h3>
 
       <!-- プレイヤー一覧 -->
       <div class="flex justify-around py-4">

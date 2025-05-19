@@ -82,6 +82,8 @@ export const useOthelloStore = defineStore('othello', () => {
     ws.value.onerror   = () => reset()
 
     ws.value.onclose = (ev) => {
+      console.log(ev.reason)
+      console.log("code: ", ev.code)
       if (ev.code === 4000) {
         alert('相手が退室しました')
       } else {

@@ -43,7 +43,7 @@ const autoLeaveTimer = ref<number | null>(null)
 watch(gameOver, (v) => {
   if (v) {
     autoLeaveTimer.value = window.setTimeout(() => {
-      store.leave()      // ★ 退室／ロビー遷移
+      if (store.my_color === 'black') store.leave()      // ★ 退室／ロビー遷移
     }, 5000)
   }
 })

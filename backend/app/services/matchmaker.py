@@ -31,10 +31,11 @@ class MatchMaker:
         # ---- player マッチング ----
         room = self.rooms[room_id]
         room.add_player(p)
+        
+        logging.info(f"player1: {room.players["black"].name}, player2: {room.players["white"].name}")
 
         # 既に待機者がいる → ルーム作成
         p1, p2 = room.players["black"], room.players["white"]
-        self.waiting_player = None
         logging.info(f"id: {room_id}")
 
         p2.room_id = room_id
@@ -49,7 +50,7 @@ class MatchMaker:
     # --- 部屋建て ---
     async def create_room(self, p: Player):
         room_id = generate_hash_id()
-        room = Room(room_id, player1=p)
+        room = Room(room_id=room_id, player1=p)
         self.rooms[room_id] = room
         logging.info(f"id: {room_id}")
         p.room_id = room_id

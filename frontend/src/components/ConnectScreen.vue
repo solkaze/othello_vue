@@ -69,10 +69,10 @@ function debugLocal() {
       </div>
 
       <div class="grid grid-cols-2 gap-4">
-        <button @click="connect('player', true)" class="col-span-2 btn-primary">ホストとして接続</button>
-        <button @click="connect('player')" class="col-span-2 btn-secondary">対戦相手として接続</button>
-        <button @click="connect('spectator')" class="btn-tertiary">観戦者として接続</button>
-        <button @click="debugLocal" class="btn-outline">ローカルデバッグ</button>
+        <button @click="connect('player', true)" class="col-span-2 btn-primary">部屋を立てる</button>
+        <button @click="connect('player')" class="col-span-2 btn-secondary">部屋に接続する</button>
+        <button @click="connect('spectator')" class="btn-tertiary">観戦者する</button>
+        <button @click="debugLocal" class="btn-outline">ローカルでプレイ</button>
       </div>
     </div>
   </div>
