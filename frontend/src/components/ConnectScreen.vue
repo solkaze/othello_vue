@@ -61,7 +61,7 @@ function debugLocal() {
         </label>
 
         <label class="block">
-          <span class="text-sm font-medium text-gray-700">部屋ID(接続時使用)</span>
+          <span class="text-sm font-medium text-gray-700">部屋 ID (接続時使用)</span>
           <input v-model="roomId" type="text" placeholder="XXXXX" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-sky-400" />
         </label>
 
@@ -71,7 +71,7 @@ function debugLocal() {
       <div class="grid grid-cols-2 gap-4">
         <button @click="connect('player', true)" class="col-span-2 btn-primary">部屋を立てる</button>
         <button @click="connect('player')" class="col-span-2 btn-secondary">部屋に接続する</button>
-        <button @click="connect('spectator')" class="btn-tertiary">観戦者する</button>
+        <button @click="connect('spectator')" class="btn-tertiary">観戦する</button>
         <button @click="debugLocal" class="btn-outline">ローカルでプレイ</button>
       </div>
     </div>

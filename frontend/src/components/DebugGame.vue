@@ -60,15 +60,13 @@ function hasMove(c: 'black' | 'white') {
 
 /* ---------- main actions ---------- */
 function placeStone(x: number, y: number) {
-  if (turn.value === 'black'){
-    if (gameOver.value) return
-    if (board.value[y][x] !== null) return
-    const flips = captures(x, y, turn.value)
-    if (!flips.length) return
-    setCell(x, y, turn.value)
-    flips.forEach(([fx, fy]) => setCell(fx, fy, turn.value))
-    advanceTurn()
-  }
+  if (gameOver.value) return
+  if (board.value[y][x] !== null) return
+  const flips = captures(x, y, turn.value)
+  if (!flips.length) return
+  setCell(x, y, turn.value)
+  flips.forEach(([fx, fy]) => setCell(fx, fy, turn.value))
+  advanceTurn()
 }
 
 function advanceTurn() {

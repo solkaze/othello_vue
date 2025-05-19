@@ -84,7 +84,9 @@ export const useOthelloStore = defineStore('othello', () => {
     ws.value.onclose = (ev) => {
       console.log(ev.reason)
       console.log("code: ", ev.code)
-      if (ev.code === 4000) {
+      if (ev.code === 1000) {
+        console.log("正常終了")
+      } else if (ev.code === 4000) {
         alert('相手が退室しました')
       } else {
         alert('接続が切れました')
@@ -100,9 +102,10 @@ export const useOthelloStore = defineStore('othello', () => {
     ws.value.send(JSON.stringify({ type: 'move', x, y }))
   }
 
-  function leave () {
+  function leave (code: number = 1000) {
+    console.log("leave_code: ", code)
     if (ws.value){
-      ws.value.send(JSON.stringify({ type: 'leave' }))
+      ws.value.send(JSON.stringify({ type: 'leave', code: code }))
       reset()
     }
   }

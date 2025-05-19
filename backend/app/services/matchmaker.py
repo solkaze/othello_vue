@@ -59,7 +59,8 @@ class MatchMaker:
         return
 
     # --- player 離脱 ---
-    async def remove_player(self, p: Player):
+    async def remove_player(self, p: Player, code = 1000):
+        logging.info(f"leave_code2: {code}")
         if self.waiting_player is p:
             self._unregister(p)
             return
@@ -75,7 +76,7 @@ class MatchMaker:
 
         # 残りがいれば全員 close
         if room.players or room.spectators:
-            await room.close_all(reason=f"{p.name} left")
+            await room.close_all(code=code, reason=f"{p.name} left")
             for q in list(room.players.values()) + room.spectators:
                 self._unregister(q)
 
