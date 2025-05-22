@@ -15,7 +15,7 @@ export const useOthelloStore = defineStore('othello', () => {
   const ws         = ref<WebSocket | null>(null)
   const player     = ref<string>('')              // 自分の名前
   const opponent   = ref<string>('')              // 相手の名前
-  const network    = ref<string>('localhost')
+  const network    = ref<string>(import.meta.env.VITE_BACKEND_HOST)
   const room       = ref('')
   const my_color   = ref<Color>('black')
   const opp_color  = ref<Color>('white')
@@ -112,6 +112,7 @@ export const useOthelloStore = defineStore('othello', () => {
 
   /* ----- private: WS handler ----- */
   function handle (m: any) {
+    if (m.room != room.value && room.value != '') return
     switch (m.type) {
       case 'matched':
         console.log('player1', m.player1, 'player2', m.player2)
@@ -163,6 +164,8 @@ export const useOthelloStore = defineStore('othello', () => {
     // ② 名前関連をクリア
     opponent.value = ''
     /* player.value は残す／消す どちらでも可 */
+
+    room.value = ''
 
     // ③ 盤面・状態を初期化
     status.value = 'idle'

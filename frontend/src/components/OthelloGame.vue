@@ -5,12 +5,14 @@ import { useOthelloStore } from '@/stores/othello'
 import InfoPanel from '@/components/InfoPanel.vue'
 import GameResultOverlay from '@/components/GameResultOverlay.vue'
 import PassNotice from '@/components/PassNotice.vue'
+import { useRouter } from 'vue-router'
 
 type Stone = 'black' | 'white' | null
 
 /** OthelloGame.vue — online Othello game component (stones are now "black"/"white") */
 
 const store = useOthelloStore()
+const router = useRouter()
 
 /* ---------- reactive state ---------- */
 const board = ref<Stone[][]>(Array.from({ length: 8 }, () => Array<Stone>(8).fill(null)))
@@ -162,7 +164,7 @@ function advanceTurn() {
 
 function remove() {
   store.leave(4000)
-  router.push("/")
+  // router.push("/")
 } 
 
 /* ---------- valid moves (for indicator) ---------- */

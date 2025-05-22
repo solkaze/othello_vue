@@ -7,7 +7,7 @@ const store = useOthelloStore()
 const router = useRouter()
 
 const name = ref('')
-const network = ref('localhost')
+const ip_address = import.meta.env.VITE_BACKEND_HOST
 const roomId = ref('')
 const errorMsg = ref('')
 
@@ -24,11 +24,11 @@ async function connect(
     errorMsg.value = 'ROOM_IDを入力してください'
     return
   } else if (isHost && roomId.value) {
-    errorMsg.value = 'ROOM_IDは入力しないでください'
+    errorMsg.value = '部屋建て時ROOM_IDは入力しないでください'
     return
   }
   try {
-    await store.connect(name.value, network.value, role, isHost, roomId.value) // ★ store 側で (name, network, role) に対応させる
+    await store.connect(name.value, ip_address, role, isHost, roomId.value) // ★ store 側で (name, network, role) に対応させる
     if (role === 'player') {
       router.push('/wait')
     } else {
@@ -53,11 +53,6 @@ function debugLocal() {
         <label class="block">
           <span class="text-sm font-medium text-gray-700">名前</span>
           <input v-model="name" type="text" placeholder="name" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-sky-400" />
-        </label>
-
-        <label class="block">
-          <span class="text-sm font-medium text-gray-700">接続先 IP / ホスト名</span>
-          <input v-model="network" type="text" placeholder="localhost または 192.168.0.42" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-sky-400" />
         </label>
 
         <label class="block">

@@ -57,7 +57,7 @@ class Room:
             try:
                 logging.info(f"{ws}")
                 reason = f"{ws} close"
-                logging.info(f"code: 4000")
+                logging.info(f"code: {code}")
                 await ws.close(code=code, reason=reason)
             except Exception:
                 pass

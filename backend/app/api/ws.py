@@ -86,6 +86,7 @@ async def websocket_endpoint(websocket: WebSocket, name: str):
                     logging.info(f"{player.name}: x: {x}, y: {y}")
                     await room.broadcast({
                         "type": "move",
+                        "room": room.id,
                         "x": x,
                         "y": y,
                         "turn": room.turn,
@@ -94,13 +95,14 @@ async def websocket_endpoint(websocket: WebSocket, name: str):
                         room.turn = room.players["black"].name if room.turn == room.players["white"].name else room.players["white"].name
                 else:
                     logging.info(f"配置拒否")
-                    await player.send({"type": "error", "message": "まだあなたの手番ではありません"})
+                    await player.send({"type": "error", "room": room.id, "message": "まだあなたの手番ではありません"})
 
             elif msg_type == "chat":
                 room = matchmaker.rooms.get(player.room_id)
                 if room:
                     await room.broadcast({
                         "type": "chat",
+                        "room": room.id,
                         "from": player.name,
                         "message": data["message"],
                     })
@@ -112,7 +114,7 @@ async def websocket_endpoint(websocket: WebSocket, name: str):
                 break
 
             else:
-                await player.send({"type": "error", "message": "未知のメッセージタイプ"})
+                await player.send({"type": "error", "room": room.id, "message": "未知のメッセージタイプ"})
 
     except WebSocketDisconnect:
         await matchmaker.remove_player(player)
