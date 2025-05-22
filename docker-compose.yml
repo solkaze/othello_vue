@@ -4,7 +4,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: backend/backend.Dockerfile
+      dockerfile: backend.Dockerfile
     environment:
       - SERVER_IP=${SERVER_IP}
     ports:
@@ -18,7 +18,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: frontend/frontend.Dockerfile
+      dockerfile: frontend.Dockerfile
     environment:
       - VITE_BACKEND_HOST=${SERVER_IP}
     ports:

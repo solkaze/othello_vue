@@ -124,7 +124,7 @@ function cancel() {
       <!-- ボタン -->
       <div class="grid grid-cols-2 gap-4 pt-2">
         <button class="btn-secondary" @click="cancel">キャンセル</button>
-        <button class="btn-primary" :class="{ 'opacity-50': !ready }" :disabled="!ready" @click="startGame">スタート</button>
+        <button class="btn-primary" :class="{ 'opacity-50': !ready }" :disabled="!ready || !store.isHost" @click="startGame">スタート</button>
       </div>
     </div>
   </div>
